@@ -1,0 +1,3604 @@
+<!DOCTYPE html>
+<!--
+  El CSS y toda la lógica del juego viven en este único archivo HTML. Los datos de cada saga
+  (cartas, arte de sobres, imagen promo) están en /data — un archivo .js por saga, cargado
+  igual que lwf.js o card-anim.js (buscá "data/dbsaga.js" más abajo). Se carga así, y NO con
+  fetch, a propósito: para que este archivo siga abriendo con doble click sin depender de
+  ningún servidor, y el JSON de las cartas no quede mezclado adentro del HTML. Para sumar una
+  saga nueva, ver las instrucciones arriba de data/dbsaga.js.
+-->
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Las imágenes de las cartas se traen directo de dokkaninfo.com. Muchos sitios de este tipo
+     bloquean la imagen si detectan que el pedido viene con un Referer que no es el de ellos
+     (protección anti-hotlink). Con file:// el navegador no manda Referer (por eso se veían),
+     pero con http://localhost sí lo manda. Esta línea le dice al navegador que no mande Referer
+     en ningún pedido de la página, para que las imágenes se sigan viendo en ambos casos. -->
+<meta name="referrer" content="no-referrer">
+<title>Álbum Dragon Ball · Saga Niño</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-night:#14101f;
+    --bg-night-2:#1d1730;
+    --parchment:#f3e7c9;
+    --parchment-2:#ecdcb4;
+    --ink:#2b2013;
+    --ink-soft:#5a4a34;
+    --orange:#ff6a1a;
+    --orange-deep:#d9500a;
+    --red:#c23b3b;
+    --teal:#2e8f82;
+    --gold:#e0a93a;
+    --n-color:#8a8f98;
+    --r-color:#3f9142;
+    --sr-color:#2f7fd1;
+    --ssr-color:#e0529a;
+    --ur-color:#e3b23c;
+    --lr-1:#ff6a1a; --lr-2:#ff3d7f; --lr-3:#8659c9; --lr-4:#e3b23c;
+    --card-ratio: 426 / 568;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(circle at 15% 0%, #241a3d 0%, transparent 45%),
+      radial-gradient(circle at 85% 10%, #2a1c33 0%, transparent 40%),
+      var(--bg-night);
+    color:var(--ink);
+    font-family:'Nunito', sans-serif;
+    min-height:100vh;
+    padding: env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px);
+  }
+
+  .wrap{ max-width: 980px; margin: 0 auto; padding: 18px 18px 80px; }
+
+  /* ---------- Nav ---------- */
+  .mainnav{
+    position:sticky; top:0; z-index:40;
+    background: linear-gradient(180deg, #1a1430, #120e22);
+    border-bottom: 3px solid var(--orange);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.4);
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .nav-inner{
+    max-width: 980px; margin:0 auto; padding: 10px 18px 0;
+    display:flex; flex-direction:column; gap:2px;
+  }
+  .nav-top{ position:relative; display:flex; align-items:center; justify-content:center; padding:2px 0 4px; }
+  .nav-logo{ height:clamp(58px, 11vw, 82px); width:auto; display:block; filter: drop-shadow(2px 3px 0 rgba(0,0,0,0.35)); }
+  @media (max-width: 480px){
+    .nav-top{ flex-direction:column; gap:6px; }
+    .coin-pill{ position:static; transform:none; }
+  }
+  .nav-items{ display:flex; align-items:stretch; justify-content:center; flex-wrap:wrap; }
+  .nav-item{ position:relative; display:flex; align-items:stretch; }
+  .nav-item + .nav-item::before{
+    content:""; width:1px; margin:12px 0; background:#3a2f52; align-self:stretch;
+  }
+  .nav-btn{
+    background:none; border:none; cursor:pointer; font-family:'Bungee', sans-serif;
+    font-size:12px; letter-spacing:0.6px; color:#d8cdef; padding:16px 16px 13px;
+    border-bottom:3px solid transparent; display:flex; align-items:center; gap:6px;
+    transition: color .15s ease, border-color .15s ease;
+  }
+  .nav-btn:hover{ color:#fff; }
+  .nav-btn.active{ color:var(--orange); border-bottom-color:var(--orange); }
+
+  .coin-pill{
+    display:flex; align-items:center; gap:6px; background:#2a2340; border:2px solid #4a4460;
+    border-radius:999px; padding:6px 12px 6px 6px;
+    position:absolute; right:0; top:50%; transform:translateY(-50%);
+  }
+  .coin-pill img, .coin-pill svg{ width:24px; height:24px; }
+  .coin-pill span{ font-family:'Bungee'; font-size:13px; color:var(--gold); }
+
+  /* ---------- Vistas ---------- */
+  .view{ display:none; }
+  .view.active{ display:block; }
+
+  /* ---------- Pack section ---------- */
+  .pack-panel{
+    background: linear-gradient(180deg, var(--bg-night-2), #150f24);
+    border:2px solid #3a2f52; border-radius:18px; padding:22px;
+    display:flex; align-items:center; gap:24px; flex-wrap:wrap; justify-content:space-between;
+    margin-bottom:18px;
+  }
+  .pack-visual{
+    width:190px; aspect-ratio: 426/568; position:relative;
+    background: transparent; box-shadow:none;
+    display:flex; align-items:center; justify-content:center; flex:0 0 auto;
+    cursor:pointer; transition: transform .2s ease; overflow:visible;
+  }
+  .pack-visual:hover{ transform: translateY(-4px) rotate(-1deg); }
+  .pack-visual.disabled{ cursor:default; filter:grayscale(0.6) brightness(0.6); }
+  .pack-visual.disabled:hover{ transform:none; }
+  .pack-stack{ position:absolute; inset:0; }
+  .pack-stack .stack-item{
+    position:absolute; inset:0; width:100%; height:100%; object-fit:contain;
+    display:block; filter: drop-shadow(0 10px 16px rgba(0,0,0,0.5));
+  }
+  .pack-stack .stack-item.stack-empty-hint{ opacity:0.4; filter: grayscale(0.7) drop-shadow(0 8px 12px rgba(0,0,0,0.4)); }
+  .pack-stack-badge{
+    display:none; position:absolute; top:-8px; right:-8px; min-width:26px; height:26px; padding:0 6px;
+    border-radius:999px; background:var(--gold); color:#2b2013; font-family:'Bungee'; font-size:12px;
+    align-items:center; justify-content:center; box-shadow:0 3px 8px rgba(0,0,0,0.4); z-index:10;
+  }
+
+  /* ---------- Sobre a tamaño completo (previsualización + apertura) ---------- */
+  .pack-big-row{ display:flex; align-items:center; gap:14px; }
+  .pack-arrow{
+    display:none; width:42px; height:42px; border-radius:50%; flex:0 0 auto;
+    background:#241c38; border:2px solid var(--orange); color:#f6ecd2; font-size:22px;
+    cursor:pointer; align-items:center; justify-content:center; line-height:1;
+  }
+  .pack-arrow.show{ display:flex; }
+  .pack-arrow:active{ transform:scale(0.92); }
+  .pack-big{
+    position:relative; display:inline-block; cursor:pointer; line-height:0;
+  }
+  .pack-big.no-art{
+    width:min(260px, 72vw); aspect-ratio:426/568; border:2px dashed rgba(255,255,255,0.4);
+    border-radius:14px; display:flex; align-items:center; justify-content:center;
+  }
+  .pack-big.no-art img.full{ display:none; }
+  .pack-big.no-art::after{ content:"Falta imagenes/sobredbsaga.png"; font-family:'Nunito'; font-size:12px; color:#c9bfe0; text-align:center; padding:16px; }
+  .pack-big img.full{
+    display:block; width:auto; height:auto; max-width:min(300px, 78vw); max-height:65vh;
+    filter: drop-shadow(0 18px 34px rgba(0,0,0,0.6));
+  }
+  .pack-big .half{ position:absolute; left:0; width:100%; overflow:hidden; display:none; }
+  .pack-big .half.top{ top:0; height:15%; }
+  .pack-big .half.bottom{ top:15%; height:85%; }
+  .pack-big .half img{ position:absolute; left:0; width:100%; display:block; filter: drop-shadow(0 10px 20px rgba(0,0,0,0.5)); }
+  .pack-big .half.top img{ top:0; height:666.7%; }
+  .pack-big .half.bottom img{ top:-17.65%; height:117.65%; }
+  .pack-big.opening img.full{ visibility:hidden; }
+  .pack-big.opening .half{ display:block; }
+  .pack-big.opening .half.top{ animation: splitUp .45s ease-in forwards; }
+  .pack-big.opening .half.bottom{ animation: splitDown .45s ease-in forwards; }
+  @keyframes splitUp{ 0%{ transform:translateY(0); opacity:1; } 100%{ transform:translateY(-115%); opacity:0; } }
+  @keyframes splitDown{ 0%{ transform:translateY(0); opacity:1; } 100%{ transform:translateY(120%); opacity:0; } }
+
+  .pack-info{ flex:1 1 260px; min-width:220px; }
+  .ticket-badge{
+    display:inline-block; font-family:'Nunito'; font-weight:800; font-size:12px; color:var(--gold);
+    background:rgba(224,169,58,0.12); border:1px solid rgba(224,169,58,0.5); border-radius:999px;
+    padding:5px 12px; margin-bottom:10px;
+  }
+  .pack-info h2{ font-family:'Bungee'; font-size:18px; color:#f6ecd2; margin:0 0 6px; }
+  .pack-info p{ margin:0 0 14px; color:#c9bfe0; font-size:14px; line-height:1.5;}
+  .btn{
+    font-family:'Nunito'; font-weight:800; font-size:15px; border:none; border-radius:999px;
+    padding:12px 26px; cursor:pointer; color:#fff;
+    background: linear-gradient(180deg, var(--orange), var(--orange-deep));
+    box-shadow: 0 4px 0 #8a3305, 0 8px 16px rgba(0,0,0,0.35);
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .btn:active{ transform: translateY(3px); box-shadow: 0 1px 0 #8a3305; }
+  .btn[disabled]{ background:#4a4460; color:#9b93b3; box-shadow:none; cursor:default; }
+  .btn.secondary{ background:transparent; color:#f6ecd2; box-shadow:none; border:2px solid #4a4460; padding:10px 18px; font-size:13px; }
+  .btn.small{ padding:8px 16px; font-size:12px; }
+  .timer{ font-family:'Bungee'; font-size:20px; color:var(--gold); letter-spacing:1px; }
+
+  /* ---------- Extra packs / codes / test mode ---------- */
+  .extras-row{ display:flex; gap:12px; flex-wrap:wrap; align-items:stretch; margin-bottom:18px; }
+  .extra-box{
+    flex:1 1 240px; background:var(--bg-night-2); border:2px solid #3a2f52; border-radius:14px;
+    padding:14px 16px; color:#e7deff;
+  }
+  .extra-box h3{ font-family:'Bungee'; font-size:13px; margin:0 0 8px; color:#f6ecd2; }
+  .extra-box-promo{
+    display:flex; align-items:center; justify-content:center; padding:0; overflow:hidden; min-height:120px;
+  }
+  .extra-box-promo .promo-img{ width:100%; height:100%; object-fit:cover; display:block; border-radius:12px; }
+  .extra-box-promo.promo-empty{
+    border:2px dashed #4a4460;
+    background: repeating-linear-gradient(45deg, #1c1730, #1c1730 10px, #241d3b 10px, #241d3b 20px);
+  }
+  .extra-box-promo.promo-empty::before{
+    content:"Espacio para imagen promocional (imagenes/promo.png)";
+    font-family:'Nunito'; font-weight:800; font-size:12px; color:#9d93b8; text-align:center; padding:14px;
+  }
+  .code-row{ display:flex; gap:8px; }
+  .code-row input{
+    flex:1; min-width:0; border-radius:8px; border:2px solid #4a4460; background:#0f0c1a;
+    color:#f6ecd2; padding:9px 10px; font-family:'Nunito'; font-weight:700; text-transform:uppercase;
+  }
+  .code-msg{ font-size:12px; margin-top:8px; min-height:14px; }
+  .code-msg.ok{ color:#7ee08a; }
+  .code-msg.err{ color:#ff8484; }
+  .extra-sobres-line{ font-size:13px; color:#c9bfe0; margin-bottom:8px; }
+
+  /* ---------- Stats / toolbar ---------- */
+  .toolbar{ display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:14px; }
+  .progress-label{ font-family:'Bungee'; color:#f6ecd2; font-size:15px; }
+  .progress-label-alt{ font-size:12px; margin-top:12px; color:#d8a9e0; }
+  .progress-bar{ width:100%; height:10px; background:#2a2340; border-radius:999px; overflow:hidden; margin-top:6px; }
+  .progress-bar > div{ height:100%; background:linear-gradient(90deg, var(--orange), var(--gold)); }
+  .progress-bar.alt > div{ background:linear-gradient(90deg, var(--lr-3), var(--lr-2)); }
+  .toolbar-actions{ display:flex; gap:8px; flex-wrap:wrap; }
+
+  /* ---------- Album ---------- */
+  .album{
+    background: var(--parchment);
+    background-image: repeating-linear-gradient(0deg, rgba(0,0,0,0.02) 0 1px, transparent 1px 26px);
+    border-radius: 16px; padding: 22px;
+    box-shadow: 0 14px 30px rgba(0,0,0,0.4), inset 0 0 40px rgba(120,90,40,0.15);
+    border: 6px solid #4a3520;
+  }
+  .grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap:14px; }
+  .slot{
+    aspect-ratio: var(--card-ratio); border-radius:8px; position:relative; cursor:pointer; overflow:hidden;
+    background: var(--parchment-2); border: 2px dashed #b9a06a; display:flex; align-items:center; justify-content:center;
+  }
+  .slot.filled{ border-style:solid; border-color:#3a2a15; box-shadow: 0 4px 10px rgba(0,0,0,0.25); }
+  .slot.is-lr-slot{ box-shadow: 0 0 14px 3px rgba(255,140,60,0.55); }
+  .slot .num{ font-family:'Bungee'; color:#a98d54; font-size:13px; }
+  .slot img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .slot .rarity-badge{ position:absolute; bottom:4px; left:4px; width:32px; height:32px; filter:drop-shadow(0 2px 3px rgba(0,0,0,0.5)); }
+  .slot .alt-tag{
+    position:absolute; top:3px; right:3px; font-size:8px; font-weight:800; color:#2b2013;
+    background:#fff; padding:1px 4px; border-radius:4px;
+  }
+  .slot.new-land{ animation: stick 0.6s cubic-bezier(.3,1.4,.5,1) both; transform-origin: 50% 20%; }
+  @keyframes stick{
+    0%{ transform: translateY(-55%) rotate(-9deg) scale(1.12); opacity:0; }
+    45%{ transform: translateY(4%) rotate(3deg) scale(1.05); opacity:1; }
+    68%{ transform: translateY(-1.5%) rotate(-1.5deg) scale(0.96); }
+    85%{ transform: translateY(0.5%) rotate(0.5deg) scale(1.02); }
+    100%{ transform: translateY(0) rotate(0deg) scale(1); }
+  }
+  .slot.pending{ border-style:solid; border-color:var(--gold); cursor:pointer; animation: pendingPulse 1.4s ease-in-out infinite; }
+  .slot.pending .pending-label{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center;
+    background:rgba(20,16,31,0.55); color:#fff; font-family:'Nunito'; font-weight:800; font-size:11px; padding:6px;
+    pointer-events:none;
+  }
+  @keyframes pendingPulse{ 0%,100%{ box-shadow: 0 0 0 0 rgba(224,169,58,0.55); } 50%{ box-shadow: 0 0 0 8px rgba(224,169,58,0); } }
+
+  /* ---------- Foil effect (shop cosmetic) ----------
+     Configuración manual fácil: tocá estas 3 variables para ajustar el efecto.
+     --foil-duration      : duración de un ciclo completo del brillo.
+     --foil-opacity       : intensidad máxima del brillo (0 a 1).
+     Los % dentro de @keyframes foilsweep controlan CUÁNDO se hace transparente:
+     0%  = arranca invisible · 12% = ya visible al máximo · 70% = empieza a apagarse · 100% = invisible de nuevo.
+     Subí el "70%" para que dure más visible, o bajalo para que se apague antes. */
+  :root{
+    --foil-duration: 3.0s;
+    --foil-opacity: 0.9;
+  }
+  .foil-effect{
+    position:relative;
+    /* fuerza el recorte correcto a las esquinas redondeadas en Safari/iOS */
+    -webkit-mask-image: -webkit-radial-gradient(white, black);
+  }
+  .foil-effect::after{
+    content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none; mix-blend-mode:overlay;
+    background: linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.85) 40%, rgba(255,255,255,0.1) 50%, transparent 65%),
+                linear-gradient(115deg, rgba(255,120,255,0.4), rgba(120,220,255,0.4), rgba(255,220,120,0.4));
+    background-size: 250% 250%, 250% 250%;
+    animation: foilsweep var(--foil-duration) linear infinite;
+  }
+  @keyframes foilsweep{
+    0%   { background-position: 0% 0%, 0% 0%;     opacity: 0; }
+    12%  { opacity: var(--foil-opacity); }
+    70%  { opacity: var(--foil-opacity); }
+    100% { background-position: 100% 100%, 100% 100%; opacity: 0; }
+  }
+
+  /* ---------- Firma de Akira Toriyama (rarísima, independiente de la rareza de la carta) ----------
+     La imagen ya viene del mismo tamaño que el arte de las cartas, así que solo se superpone
+     100%/100% encima, sea cual sea el contenedor (casilla del álbum, detalle, funda, slab). */
+  .signature-overlay{
+    position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
+    pointer-events:none; z-index:5;
+  }
+  .signed-card{
+    box-shadow: 0 0 22px 5px rgba(255,215,80,0.7), 0 0 46px 12px rgba(255,255,255,0.28) !important;
+  }
+  .signed-tag{
+    background: linear-gradient(90deg, #2b2013, #4a3a1c); color:#ffd76a; font-weight:800;
+    border: 1px solid rgba(255,215,100,0.6);
+  }
+  .signed-dupe-card{
+    position:relative; width:100%; aspect-ratio: var(--card-ratio); border-radius:8px; overflow:hidden;
+    background:#1a1430; box-shadow: 0 6px 14px rgba(0,0,0,0.4);
+  }
+  .signed-dupe-card img{ width:100%; height:100%; object-fit:cover; display:block; }
+
+  /* ---------- Modal (reveal + detail) ---------- */
+  .overlay{
+    position:fixed; inset:0; background:rgba(10,7,18,0.86); display:none;
+    align-items:center; justify-content:center; z-index:50; padding:20px; overflow-y:auto;
+  }
+  .overlay.show{ display:flex; }
+  .modal-card{
+    width:min(240px, 60vw); aspect-ratio: var(--card-ratio); border-radius:14px; position:relative;
+    overflow:hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.6); flex:0 0 auto;
+  }
+  .modal-card img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .modal-card-canvas{ width:100%; height:100%; display:none; }
+  .modal-card.lwf-active img, .slab-big-window.lwf-active img{ display:none; }
+  .modal-card.lwf-active .modal-card-canvas, .slab-big-window.lwf-active .modal-card-canvas{ display:block; }
+  .modal-wrap{ display:flex; flex-direction:column; align-items:center; gap:14px; max-width:640px; margin:auto; }
+  .modal-card.reveal{ animation: flipin 0.55s ease backwards; }
+  @keyframes flipin{
+    0%{ transform: rotateY(90deg) scale(0.6); opacity:0; }
+    100%{ transform: rotateY(0) scale(1); opacity:1; }
+  }
+  .modal-card.is-LR{ box-shadow: 0 0 40px 6px rgba(255,140,60,0.55), 0 20px 50px rgba(0,0,0,0.6); }
+
+  /* ---------- Tilt 3D al inspeccionar una carta (estilo Steam trading cards) ----------
+     Solo en #detailCard. El JS calcula el ángulo según la posición del mouse/dedo y lo
+     aplica como transform inline; acá solo dejamos la transición de "vuelta al reposo"
+     y el brillo que sigue al puntero. */
+  .modal-wrap{ perspective: 900px; }
+  .tilt-card{ transition: transform .45s cubic-bezier(.2,.8,.2,1); will-change: transform; cursor: grab; }
+  .tilt-card.tilting{ transition: none; }
+  .card-glare{
+    position:absolute; inset:0; z-index:6; pointer-events:none; border-radius:inherit;
+    background: radial-gradient(circle at var(--px,50%) var(--py,50%), rgba(255,255,255,0.55), rgba(255,255,255,0) 55%);
+    mix-blend-mode: overlay; opacity:0; transition: opacity .25s ease;
+  }
+  .tilt-card.tilting .card-glare{ opacity:1; }
+  .modal-title{ font-family:'Bungee'; color:#f6ecd2; text-align:center; font-size:16px; }
+  .modal-sub{ color:#c9bfe0; font-size:12px; text-align:center; margin-top:-6px; display:flex; align-items:center; gap:6px; justify-content:center;}
+  .modal-sub .rarity-badge{ width:26px; height:26px; }
+  .pull-grid{ display:flex; gap:14px; flex-wrap:wrap; justify-content:center; }
+  .pull-item{ display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .dup-tag{ font-size:11px; font-weight:800; color:var(--gold); display:flex; align-items:center; gap:3px; }
+  .dup-tag svg{ width:13px; height:13px; }
+  /* ---- Revelado de sobre, una figurita a la vez ---- */
+  .pull-card-back{
+    position:relative; overflow:hidden;
+    width:min(150px, 26vw); aspect-ratio: var(--card-ratio);
+    background: linear-gradient(145deg, #342a52, #15101f);
+    display:flex; align-items:center; justify-content:center;
+    border: 2px solid rgba(255,255,255,0.14);
+  }
+  .pull-card-back::after{ content:"?"; font-family:'Bungee'; font-size:38px; color:rgba(255,255,255,0.22); }
+  /* Dorso personalizable: imagenes/dorso.png. Si el usuario lo agrega, tapa el "?" de arriba. */
+  .pull-card-back-img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  .pull-card-back.has-dorso::after{ content:none; }
+  /* Todas las cartas sin revelar son elegibles (el usuario decide el orden), así que el brillo es
+     más suave que cuando solo había una activa, y al pasar el mouse la elegida "se levanta". */
+  .pull-item-active{ cursor:pointer; }
+  .pull-item-active .pull-card-back{
+    border-color: var(--gold); transition: transform .15s ease;
+    animation: pullCardPulse 1.6s ease-in-out infinite;
+  }
+  .pull-item-active:hover .pull-card-back{ transform: translateY(-5px) scale(1.04); }
+  @keyframes pullCardPulse{
+    0%,100%{ box-shadow: 0 0 0 0 rgba(224,169,58,0.45); }
+    50%{ box-shadow: 0 0 16px 4px rgba(224,169,58,0.32); }
+  }
+  .pull-tap-hint{ font-size:11px; font-weight:800; color:var(--gold); }
+  /* ---- Modo "Mazo en mano": una carta grande (tamaño de inspección) que se va pasando ---- */
+  .pull-stack-area{ display:flex; flex-direction:column; align-items:center; gap:8px; }
+  .pull-stack-deck{ position:relative; width:min(240px, 60vw); aspect-ratio: var(--card-ratio); margin-bottom:24px; }
+  /* Sombra de contacto en el "piso", debajo de toda la pila */
+  .pull-stack-deck::after{
+    content:""; position:absolute; left:4%; right:4%; bottom:-30px; height:20px; z-index:0; pointer-events:none;
+    background: radial-gradient(ellipse at center, rgba(0,0,0,0.55), transparent 70%); filter: blur(3px);
+  }
+  .pull-stack-shadow{
+    position:absolute; inset:0; border-radius:14px; border: 2px solid rgba(255,255,255,0.10);
+    /* Tres capas: un velo oscuro (--shade, más fuerte cuanto más profunda la carta), el dorso del
+       usuario (imagenes/dorso.png) y el degradé de siempre como respaldo — si el PNG no existe, el
+       navegador cae solo a la capa de abajo. */
+    background-image:
+      linear-gradient(rgba(5,3,12,var(--shade,0.3)), rgba(5,3,12,var(--shade,0.3))),
+      url('imagenes/dorso.png'),
+      linear-gradient(145deg, #342a52, #15101f);
+    background-size: cover, cover, cover;
+    background-position: center, center, center;
+    /* cada carta proyecta su sombra sobre la que tiene debajo; el reflejo del canto da grosor */
+    box-shadow: 0 5px 12px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.14);
+  }
+  /* Apiladas "a mano": cada una apenas desalineada para un lado distinto */
+  .pull-stack-shadow.s4{ --shade:0.62; transform: translate(-4px, 19px) rotate(-3.4deg); z-index:1; }
+  .pull-stack-shadow.s3{ --shade:0.48; transform: translate(8px, 14px) rotate(2.8deg);  z-index:2; }
+  .pull-stack-shadow.s2{ --shade:0.34; transform: translate(-3px, 9px) rotate(-1.9deg); z-index:3; }
+  .pull-stack-shadow.s1{ --shade:0.20; transform: translate(4px, 5px) rotate(1.3deg);   z-index:4; }
+  .pull-stack-card.pull-card-back{ width:100%; height:100%; position:relative; z-index:5; cursor:pointer; }
+  .pull-stack-card.reveal{ position:relative; z-index:5; width:100%; height:100%; cursor:pointer; }
+  /* La de arriba proyecta una sombra más corta y nítida sobre la pila (las LR/firmadas conservan su brillo) */
+  .pull-stack-card.pull-card-back,
+  .pull-stack-card.reveal:not(.is-LR):not(.signed-card){ box-shadow: 0 8px 16px rgba(0,0,0,0.6), 0 1px 3px rgba(0,0,0,0.8); }
+  .pull-stack-deal{ animation: stackDeal .28s ease-out; }
+  @keyframes stackDeal{
+    from{ transform: translateY(10px) scale(0.985); opacity:0.4; }
+    to  { transform: translateY(0) scale(1); opacity:1; }
+  }
+  .pull-stack-info{ display:flex; flex-direction:column; align-items:center; gap:5px; margin-top:8px; }
+  .pull-stack-hint{ font-size:12px; font-weight:800; color:var(--gold); }
+  .pull-stack-counter{ font-size:11px; color:#8a80a8; }
+  .variant-switch{ display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
+  .variant-switch button{
+    font-family:'Nunito'; font-weight:700; font-size:12px; border-radius:8px; border:2px solid #4a4460;
+    background:transparent; color:#f6ecd2; padding:6px 10px; cursor:pointer; display:flex; align-items:center; gap:5px;
+  }
+  .variant-switch button.active{ background:var(--orange); border-color:var(--orange-deep); }
+  .variant-switch .rarity-badge{ width:22px; height:22px; }
+  .close-x{ position:absolute; top:16px; right:20px; color:#f6ecd2; font-size:26px; cursor:pointer; background:none; border:none; line-height:1; }
+
+  /* ---------- Share ---------- */
+  .share-row{ margin-top:22px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:center; }
+  .share-row span{ font-size:13px; color:#c9bfe0; font-family:'Nunito'; font-weight:700; }
+  .share-btn{
+    width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    color:#fff; text-decoration:none; border:none; cursor:pointer; font-size:16px;
+  }
+  .share-btn.wa{ background:#25D366; } .share-btn.tw{ background:#111; } .share-btn.fb{ background:#1877F2; } .share-btn.cp{ background:#4a4460; }
+
+  footer{ text-align:center; color:#7c7395; font-size:12px; margin-top:26px; }
+
+  /* ---------- Tienda ---------- */
+  .baba-float{
+    display:block;
+    filter: drop-shadow(0 16px 22px rgba(0,0,0,0.5));
+    animation: babaFloat 3.4s ease-in-out infinite;
+  }
+  @keyframes babaFloat{
+    0%,100%{ transform: translateY(0) rotate(-1deg); }
+    50%{ transform: translateY(-16px) rotate(1deg); }
+  }
+  /* Baba asomada como vendedora, integrada al panel en vez de flotar suelta arriba */
+  .shop-baba-panel{ position:relative; overflow:visible; padding-left:180px; justify-content:flex-start; margin-top:26px; }
+  .shop-baba-img{
+    position:absolute; left:-6px; bottom:-14px; width:170px; max-width:38vw; height:auto; z-index:2;
+  }
+  .shop-baba-info{ flex:1 1 220px; min-width:200px; }
+  @media (max-width: 620px){
+    .shop-baba-panel{ padding-left:18px; padding-top:130px; flex-direction:column; margin-top:60px; }
+    .shop-baba-img{ left:50%; bottom:auto; top:-40px; transform:translateX(-50%); width:130px; max-width:44vw; }
+  }
+  .shop-grid{ display:grid; grid-template-columns: repeat(auto-fit, minmax(230px,1fr)); gap:16px; margin-top:18px; }
+  .shop-item{
+    background: var(--bg-night-2); border:2px solid #3a2f52; border-radius:16px; padding:18px;
+    display:flex; flex-direction:column; gap:10px; align-items:center; text-align:center;
+  }
+  .shop-item .icon-wrap{ width:64px; height:64px; display:flex; align-items:center; justify-content:center; }
+  .shop-item .icon-wrap svg{ width:100%; height:100%; }
+  .shop-item .icon-wrap.icon-wrap-big{ width:92px; height:92px; font-size:52px; }
+  .shop-item .icon-wrap.icon-wrap-pack{ width:96px; height:128px; }
+  .shop-item-legendary{ border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset, 0 0 18px rgba(224,169,58,0.25); }
+  /* Ya comprado (único por cuenta): vuelve al aspecto del resto de los ítems y un poco más apagado */
+  .shop-item.shop-item-sold{ border-color:#3a2f52; box-shadow:none; opacity:0.6; }
+  .shop-limit{ font-size:11px; color:#9d93b8; margin-top:-4px; }
+  .shop-pack-img{ width:100%; height:100%; object-fit:contain; filter: drop-shadow(0 6px 10px rgba(0,0,0,0.5)); }
+  .shop-item h4{ font-family:'Bungee'; font-size:14px; color:#f6ecd2; margin:0; }
+  .shop-item p{ font-size:12px; color:#c9bfe0; margin:0; line-height:1.4; }
+  .shop-price{ display:flex; align-items:center; gap:6px; font-family:'Bungee'; color:var(--gold); font-size:14px; }
+  .shop-price svg{ width:18px; height:18px; }
+  .shop-note{ font-size:12px; color:#8a80a8; text-align:center; margin-top:18px; }
+
+  .foil-picker-grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(76px,1fr)); gap:10px; max-width:520px; max-height:50vh; overflow-y:auto; padding:6px; }
+  .foil-picker-grid .pslot{ aspect-ratio: var(--card-ratio); border-radius:6px; overflow:hidden; cursor:pointer; border:2px solid #4a4460; position:relative; }
+  .foil-picker-grid .pslot img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .foil-picker-grid .pslot.has-foil{ border-color: var(--gold); }
+  .foil-picker-grid .pslot .pf-tag{ position:absolute; bottom:2px; left:2px; right:2px; font-size:8px; text-align:center; background:rgba(0,0,0,0.6); color:#fff; padding:1px; }
+
+  /* ---------- Placeholder views ---------- */
+  .placeholder-box{
+    background: var(--bg-night-2); border:2px dashed #3a2f52; border-radius:16px; padding:40px 20px;
+    text-align:center; color:#c9bfe0; margin-top:10px;
+  }
+  .placeholder-box h3{ font-family:'Bungee'; color:#f6ecd2; font-size:16px; margin:0 0 8px; }
+
+  /* ---------- Logros ---------- */
+  .ach-grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(280px,1fr)); gap:14px; margin-top:16px; }
+  .ach-card{
+    display:flex; gap:14px; align-items:center; background:var(--bg-night-2); border:2px solid #3a2f52;
+    border-radius:14px; padding:14px; opacity:0.55; filter:grayscale(0.8);
+  }
+  .ach-card.unlocked{ opacity:1; filter:none; border-color: var(--gold); }
+  .ach-icon{
+    width:52px; height:52px; border-radius:10px; flex:0 0 auto; background:#1a1430;
+    display:flex; align-items:center; justify-content:center; font-size:26px; overflow:hidden;
+  }
+  .ach-icon img{ width:100%; height:100%; object-fit:cover; }
+  .ach-text h4{ font-family:'Bungee'; font-size:13px; color:#f6ecd2; margin:0 0 4px; }
+  .ach-text p{ font-size:12px; color:#c9bfe0; margin:0 0 4px; line-height:1.4; }
+  .ach-reward{ font-size:11px; color:var(--gold); font-weight:800; }
+  .ach-progress{ font-size:11px; color:#8a80a8; margin-top:2px; }
+
+  /* ---------- Aviso de logro (estilo Steam) ---------- */
+  .ach-toast{
+    position:fixed; top:16px; right:16px; z-index:80; display:flex; gap:12px; align-items:center;
+    background:linear-gradient(135deg, #1a1430, #241c38); border:2px solid var(--gold); border-radius:12px;
+    padding:12px 16px; box-shadow:0 12px 28px rgba(0,0,0,0.5); max-width:300px;
+    transform: translateX(120%); opacity:0; transition: transform .4s ease, opacity .4s ease;
+    top: calc(16px + env(safe-area-inset-top, 0px));
+  }
+  .ach-toast.show{ transform: translateX(0); opacity:1; }
+  .ach-toast-icon{
+    width:44px; height:44px; border-radius:8px; flex:0 0 auto; background:#1a1430;
+    display:flex; align-items:center; justify-content:center; font-size:22px; overflow:hidden;
+  }
+  .ach-toast-icon img{ width:100%; height:100%; object-fit:cover; }
+  .ach-toast-label{ font-family:'Nunito'; font-weight:800; font-size:10px; color:var(--gold); text-transform:uppercase; letter-spacing:0.5px; }
+  .ach-toast-title{ font-family:'Bungee'; font-size:13px; color:#f6ecd2; margin-top:2px; }
+
+  /* ---------- Video de figurita LR ---------- */
+  .lr-video-overlay{
+    position:fixed; inset:0; background:#000; display:none; z-index:95;
+    align-items:center; justify-content:center; flex-direction:column; gap:16px;
+    padding: env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px);
+  }
+  .lr-video-overlay.show{ display:flex; }
+  .lr-video{ width:min(100vw, 420px); max-height:80vh; aspect-ratio:9/16; object-fit:cover; background:#000; border-radius:10px; }
+  .lr-video-skip{ color:#fff; }
+
+  /* ---------- Perfil: Top Loaders / Expositor ---------- */
+  .perfil-section{
+    background: var(--bg-night-2); border:2px solid #3a2f52; border-radius:16px;
+    padding:18px; margin-top:18px;
+  }
+  .perfil-section h3{ font-family:'Bungee'; font-size:15px; color:#f6ecd2; margin:0 0 6px; }
+  .perfil-section h4.perfil-subtitle{ font-family:'Bungee'; font-size:12px; color:#c9bfe0; margin:18px 0 8px; }
+  .perfil-desc{ font-size:12px; color:#c9bfe0; margin:0 0 10px; line-height:1.4; }
+
+  /* ---------- Opciones ---------- */
+  .option-row{
+    display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
+    background: var(--bg-night-2); border:2px solid #3a2f52; border-radius:14px; padding:14px 16px;
+  }
+  .option-text{ flex:1 1 220px; min-width:200px; }
+  .option-text h4{ font-family:'Bungee'; font-size:13px; color:#f6ecd2; margin:0 0 4px; }
+  .option-text p{ font-size:12px; color:#c9bfe0; margin:0; line-height:1.4; }
+  .option-row + .option-row{ margin-top:10px; }
+  .option-control{ display:flex; align-items:center; gap:10px; flex:0 0 auto; }
+  .option-switch-label{ font-size:11px; font-weight:800; color:#8a80a8; transition: color .15s ease; }
+  .option-switch-label.active{ color:var(--gold); }
+  .switch{ position:relative; display:inline-block; width:46px; height:26px; flex:0 0 auto; }
+  .switch input{ opacity:0; width:0; height:0; position:absolute; }
+  .switch-slider{
+    position:absolute; inset:0; cursor:pointer; background:#2a2340; border:2px solid #4a3f66;
+    border-radius:999px; transition:.2s;
+  }
+  .switch-slider::before{
+    content:""; position:absolute; height:16px; width:16px; left:2px; top:2px;
+    background:#c9bfe0; border-radius:50%; transition:.2s;
+  }
+  .switch input:checked + .switch-slider{ background: var(--orange); border-color: var(--gold); }
+  .switch input:checked + .switch-slider::before{ transform: translateX(20px); background:#fff; }
+  .switch input:focus-visible + .switch-slider{ outline:2px solid var(--gold); outline-offset:2px; }
+  .kbd{
+    display:inline-block; font-family:'Bungee'; font-size:10px; color:#f6ecd2; background:#2a2340;
+    border:1px solid #4a3f66; border-bottom-width:3px; border-radius:5px; padding:1px 6px; line-height:1.3;
+  }
+  .option-seg{
+    display:flex; flex:0 0 auto; background:#2a2340; border:2px solid #4a3f66; border-radius:999px;
+    padding:3px; gap:2px; flex-wrap:wrap;
+  }
+  .option-seg-btn{
+    font-family:'Nunito'; font-weight:800; font-size:11px; color:#8a80a8; background:none; border:none;
+    border-radius:999px; padding:7px 12px; cursor:pointer; transition: color .15s ease, background .15s ease;
+  }
+  .option-seg-btn:hover{ color:#c9bfe0; }
+  .option-seg-btn.active{ background: var(--orange); color:#fff; }
+  .tl-grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); gap:12px; }
+  .tl-card{
+    background:#1a1430; border:2px solid #3a2f52; border-radius:12px; padding:10px;
+    display:flex; flex-direction:column; align-items:center; gap:6px; text-align:center;
+  }
+  .tl-img-wrap{ position:relative; }
+  .tl-card .tl-img-wrap{ width:100%; aspect-ratio: 426/568; border-radius:6px; overflow:hidden; }
+  .tl-card .tl-img-wrap img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .tl-card .tl-actions{ display:flex; gap:6px; flex-wrap:wrap; justify-content:center; margin-top:4px; }
+  .tl-card .btn.small{ font-size:11px; padding:6px 10px; }
+  .tl-empty-note{ font-size:12px; color:#8a80a8; padding:10px 0; grid-column: 1/-1; text-align:center; }
+
+  /* ---- Top Loader: funda rígida transparente, boca abierta arriba ----
+     La misma estructura se usa en el inventario (chica, ocupa el ancho de su casilla), en la
+     vista grande interactiva y en las animaciones de guardar/sacar la carta. Todo en porcentajes,
+     así escala sola. Capas: placa trasera (el propio .toploader) -> carta (.tlb-card) -> borde de
+     la bolsa (::before), reflejos diagonales (::after), costura de la boca (.tlb-slit) y destello
+     de "sellado" (.tlb-sweep) por delante. */
+  .toploader{
+    position:relative; width:100%; aspect-ratio: 1 / 1.293; border-radius:5px;
+    background: linear-gradient(160deg, rgba(255,255,255,0.30), rgba(255,255,255,0.10) 45%, rgba(255,255,255,0.24));
+    border:1px solid rgba(255,255,255,0.6);
+    -webkit-backdrop-filter: blur(1.5px); backdrop-filter: blur(1.5px);
+    box-shadow:
+      0 12px 24px rgba(0,0,0,0.5),
+      inset 0 0 0 1px rgba(255,255,255,0.25),
+      inset 0 0 14px rgba(170,215,255,0.28);   /* canto del plástico: leve tinte celeste, como el acrílico real */
+  }
+  .toploader .tlb-card{
+    position:absolute; z-index:1; left:6%; top:5.8%; width:88%; aspect-ratio: 426 / 568;
+    border-radius:3px; overflow:hidden; background:#1a1430; box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+  }
+  .toploader .tlb-card img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .tlb-card.lwf-active img{ display:none; }
+  .tlb-card.lwf-active .modal-card-canvas{ display:block; }
+  .toploader::before{           /* borde de la "bolsa" donde entra la carta */
+    content:""; position:absolute; z-index:3; pointer-events:none;
+    left:6%; top:5.8%; width:88%; aspect-ratio: 426 / 568;
+    border:1px solid rgba(255,255,255,0.7); border-radius:3px;
+    box-shadow: 0 0 5px rgba(255,255,255,0.35), inset 0 0 6px rgba(255,255,255,0.25);
+  }
+  .toploader::after{            /* cara delantera: reflejos diagonales sobre todo el plástico */
+    content:""; position:absolute; inset:0; z-index:3; pointer-events:none; border-radius:inherit;
+    background:
+      linear-gradient(115deg, transparent 16%, rgba(255,255,255,0.30) 23%, rgba(255,255,255,0.06) 32%, transparent 38%),
+      linear-gradient(115deg, transparent 57%, rgba(255,255,255,0.42) 59%, transparent 61.5%),
+      linear-gradient(115deg, transparent 68%, rgba(255,255,255,0.17) 75%, transparent 86%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.8), inset 1px 0 0 rgba(255,255,255,0.45);
+  }
+  .toploader .tlb-slit{         /* la rendija por donde se desliza la carta */
+    position:absolute; z-index:3; pointer-events:none; left:2.5%; right:2.5%; top:3.3%; height:3px; border-radius:2px;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.4), rgba(0,0,0,0.4) 1px, rgba(255,255,255,0.7) 1px, rgba(255,255,255,0.7) 2px, transparent 2px);
+  }
+  .toploader .tlb-sweep{ position:absolute; inset:0; overflow:hidden; border-radius:inherit; pointer-events:none; z-index:4; }
+  .toploader .tlb-sweep i{
+    position:absolute; top:-20%; bottom:-20%; left:-45%; width:32%; opacity:0; transform: skewX(-18deg);
+    background: linear-gradient(100deg, transparent, rgba(255,255,255,0.7), transparent);
+  }
+  .toploader.sealed .tlb-sweep i{ animation: tlbSweep .8s ease-out both; }
+  @keyframes tlbSweep{ 0%{ left:-45%; opacity:0; } 15%{ opacity:1; } 100%{ left:125%; opacity:0; } }
+  .toploader .tlb-badge{ position:absolute; z-index:5; left:8.5%; bottom:5.2%; width:22px; height:22px; pointer-events:none; }
+  .toploader .tlb-badge svg{ width:100%; height:100%; }
+  .toploader.tl-clickable{ cursor:pointer; transition: transform .15s ease; }
+  .toploader.tl-clickable:hover{ transform: translateY(-3px) scale(1.02); }
+  .toploader.toploader-big{ width:min(270px, 66vw); box-shadow: 0 24px 48px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(255,255,255,0.25), inset 0 0 18px rgba(170,215,255,0.3); }
+
+  /* Animaciones: la carta entra por la boca de la funda / sale de ella */
+  @keyframes tlbInsert{
+    0%   { transform: translateY(-105%) scale(1.06) rotate(-3deg); opacity:0; }
+    15%  { opacity:1; }
+    72%  { transform: translateY(3%) scale(1) rotate(0.5deg); }      /* pequeño sobre-recorrido: se asienta */
+    100% { transform: translateY(0) scale(1) rotate(0); opacity:1; }
+  }
+  .tlb-card.tlb-inserting{ animation: tlbInsert .9s cubic-bezier(.3,.7,.25,1) both; }
+  @keyframes tlbRemove{
+    0%   { transform: translateY(0) scale(1); opacity:1; }
+    20%  { transform: translateY(3%) scale(1); }                     /* toma un poco de impulso hacia abajo */
+    100% { transform: translateY(-110%) scale(1.08) rotate(4deg); opacity:0; }
+  }
+  .tlb-card.tlb-removing{ animation: tlbRemove .8s cubic-bezier(.5,0,.6,1) both; }
+  .toploader-stage{ display:flex; justify-content:center; padding-top:6px; }
+  .tl-detail-actions{ display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:2px; }
+
+  /* ---- Case de Expositor: slab estilo grading, plástico rígido blanco con etiqueta y ventana ---- */
+  .grade-Z{ background:linear-gradient(135deg,#ff6a1a,#ff3d7f,#8659c9,#e3b23c); color:#fff; }
+  .grade-A{ background:#8659c9; color:#fff; }
+  .grade-B{ background:#3e8fb0; color:#fff; }
+  .grade-C{ background:#7c8a99; color:#fff; }
+  .card-slab{
+    position:relative; width:100%; height:100%; display:flex; flex-direction:column; gap:6px;
+    background: linear-gradient(165deg, rgba(255,255,255,0.20), rgba(255,255,255,0.03) 45%, rgba(255,255,255,0.14) 100%);
+    border: 1px solid rgba(255,255,255,0.4);
+    border-radius:12px; padding:8px;
+    -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+    box-shadow:
+      0 10px 22px rgba(0,0,0,0.5),                 /* sombra proyectada: el case es rígido y tiene volumen */
+      inset 0 0 0 1px rgba(255,255,255,0.55),       /* canto nítido del acrílico */
+      inset 0 3px 6px rgba(255,255,255,0.4),        /* brillo superior */
+      inset 0 -10px 16px -10px rgba(0,0,0,0.35);    /* sombra inferior, sugiere grosor */
+  }
+  .card-slab::after{
+    content:""; position:absolute; inset:0; border-radius:12px; pointer-events:none; z-index:3;
+    background: linear-gradient(115deg, rgba(255,255,255,0.65) 0%, transparent 20%, transparent 68%, rgba(255,255,255,0.4) 100%);
+    mix-blend-mode: overlay;
+  }
+  .slab-label{
+    flex:0 0 auto; background: linear-gradient(180deg, #fbf8ef, #ece5d0); border-radius:6px;
+    display:flex; align-items:center; justify-content:center;
+    gap:4px; padding:4px 6px; font-family:'Bungee'; font-size:11px; color:#2b2013;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 2px 5px rgba(0,0,0,0.22);
+  }
+  .slab-label .slab-grade{ font-weight:800; }
+  .slab-label .slab-grade.grade-Z{ background:linear-gradient(135deg,#ff6a1a,#ff3d7f,#8659c9,#e3b23c); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .slab-label .slab-grade.grade-A{ color:#7c4fd1; }
+  .slab-label .slab-grade.grade-B{ color:#2f7fd1; }
+  .slab-label .slab-grade.grade-C{ color:#5f6a73; }
+  .slab-window{
+    flex:1; border-radius:6px; overflow:hidden; background:#1a1430; position:relative;
+    box-shadow:
+      inset 0 0 0 2px rgba(20,15,30,0.9),            /* marco oscuro, como el inserto plástico de una slab real */
+      inset 0 10px 14px -10px rgba(255,255,255,0.3); /* reflejo superior sobre el vidrio */
+  }
+  .slab-window img{ width:100%; height:100%; object-fit:cover; display:block; }
+
+  /* ---- Case grande e interactivo, al inspeccionar una carta graduada ----
+     Acrílico transparente con reflejos (el plástico deja ver a través, como una slab real;
+     la etiqueta y el pie siguen opacos, como el sticker impreso que llevan las de verdad).
+     Remaches en las esquinas, ventana con marco grueso. Usa la misma infraestructura de
+     tilt 3D que el detalle de álbum, y puede animar la LR adentro con LWF. */
+  .card-slab-big{
+    position:relative; width:min(260px, 64vw); display:flex; flex-direction:column; gap:8px;
+    border-radius:16px; padding:14px;
+    border: 1px solid rgba(255,255,255,0.45);
+    -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+    background:
+      radial-gradient(circle, rgba(255,255,255,0.55) 0%, rgba(200,200,215,0.55) 55%, rgba(150,150,165,0.55) 100%) 13px 13px/7px 7px no-repeat,
+      radial-gradient(circle, rgba(255,255,255,0.55) 0%, rgba(200,200,215,0.55) 55%, rgba(150,150,165,0.55) 100%) calc(100% - 13px) 13px/7px 7px no-repeat,
+      radial-gradient(circle, rgba(255,255,255,0.55) 0%, rgba(200,200,215,0.55) 55%, rgba(150,150,165,0.55) 100%) 13px calc(100% - 13px)/7px 7px no-repeat,
+      radial-gradient(circle, rgba(255,255,255,0.55) 0%, rgba(200,200,215,0.55) 55%, rgba(150,150,165,0.55) 100%) calc(100% - 13px) calc(100% - 13px)/7px 7px no-repeat,
+      linear-gradient(165deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.02) 45%, rgba(255,255,255,0.14) 100%);
+    box-shadow:
+      0 24px 50px rgba(0,0,0,0.55),
+      inset 0 0 0 1px rgba(255,255,255,0.55),
+      inset 0 4px 8px rgba(255,255,255,0.4),
+      inset 0 -16px 26px -16px rgba(0,0,0,0.45);
+  }
+  .card-slab-big::after{
+    content:""; position:absolute; inset:0; border-radius:16px; pointer-events:none; z-index:4;
+    background: linear-gradient(115deg, rgba(255,255,255,0.6) 0%, transparent 18%, transparent 76%, rgba(255,255,255,0.35) 100%);
+    mix-blend-mode: overlay;
+  }
+  .slab-big-label{
+    position:relative; z-index:2; background: linear-gradient(180deg, #fefcf5, #ece5d0);
+    border-radius:8px; padding:7px 9px; display:flex; align-items:center; justify-content:space-between; gap:8px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 2px 6px rgba(0,0,0,0.25);
+  }
+  .slab-big-brand{ font-family:'Bungee'; font-size:9px; letter-spacing:0.6px; color:#7c6a3f; }
+  .slab-big-gradebox{
+    flex:0 0 auto; width:38px; height:38px; border-radius:8px; background:#fff;
+    display:flex; align-items:center; justify-content:center; font-size:20px;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.18);
+  }
+  .slab-big-id{ font-family:'Nunito'; font-weight:800; font-size:10px; color:#6a5d3f; text-align:right; }
+  .slab-big-window{
+    position:relative; z-index:2; border-radius:10px; overflow:hidden; background:#1a1430;
+    aspect-ratio: var(--card-ratio);
+    box-shadow: inset 0 0 0 3px rgba(20,15,30,0.9), inset 0 14px 20px -14px rgba(255,255,255,0.35);
+  }
+  .slab-big-window img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .slab-big-footer{
+    position:relative; z-index:2; font-family:'Nunito'; font-weight:800; font-size:11px; color:#6a5d3f;
+    text-align:center; background: linear-gradient(180deg, #fbf8ef, #ece5d0); border-radius:8px; padding:6px 8px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 2px 5px rgba(0,0,0,0.18);
+  }
+
+  /* ---- Animación de graduación: la figurita "entra" al case antes de ver el resultado ---- */
+  @keyframes cardSlideIntoCase{
+    0%   { transform: translateY(-170%) rotate(-8deg); opacity: 0; }
+    55%  { transform: translateY(8%) rotate(2deg); opacity: 1; }
+    75%  { transform: translateY(-3%) rotate(-1deg); }
+    100% { transform: translateY(0) rotate(0deg); opacity: 1; }
+  }
+  .grade-reveal-slide{ animation: cardSlideIntoCase .7s cubic-bezier(.2,.8,.2,1) both; }
+  @keyframes gradeSealFlash{
+    0%{ opacity:0; } 30%{ opacity:.9; } 100%{ opacity:0; }
+  }
+  #gradeRevealSlab.sealing .slab-big-window::before{
+    content:""; position:absolute; inset:0; z-index:5; background:#fff; pointer-events:none;
+    animation: gradeSealFlash .35s ease-out both;
+  }
+  @keyframes gradeBadgePop{
+    0%{ transform: scale(0.3); opacity:0; } 70%{ transform: scale(1.18); opacity:1; } 100%{ transform: scale(1); opacity:1; }
+  }
+  .grade-reveal-pop{ animation: gradeBadgePop .45s ease both; }
+  .card-slab.slab-clickable{ cursor:pointer; transition: transform .15s ease; }
+  .card-slab.slab-clickable:hover{ transform: scale(1.035); }
+
+  .expo-showcase{
+    display:grid; grid-template-columns: repeat(auto-fill, minmax(120px,1fr)); gap:10px; margin-bottom:6px;
+  }
+  .expo-slot{
+    aspect-ratio: 426/568; border-radius:10px; border:2px dashed #4a4460; position:relative; overflow:hidden;
+    display:flex; align-items:center; justify-content:center; background:#1a1430;
+  }
+  .expo-slot.filled{ border:none; background:none; overflow:visible; }
+  .expo-slot img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .expo-slot .num{ font-family:'Nunito'; font-size:10px; color:#5a4a80; }
+
+  /* ---- Mini previews del case, para la tienda ---- */
+  .icon-wrap.icon-wrap-tall{ width:64px; height:86px; }
+  .mini-card-fill{ width:100%; height:100%; background:linear-gradient(160deg, var(--orange), #8659c9); }
+
+  /* ---- Header de perfil: avatar / nick / bio editables ---- */
+  .profile-header{ display:flex; gap:16px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }
+  .profile-avatar{
+    width:76px; height:76px; border-radius:50%; flex:0 0 auto; position:relative; cursor:pointer;
+    border:3px solid var(--orange); overflow:hidden; background:#1a1430;
+    display:flex; align-items:center; justify-content:center; font-size:30px;
+  }
+  .profile-avatar img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .profile-avatar .avatar-edit-hint{
+    position:absolute; inset:0; background:rgba(0,0,0,0.55); color:#fff; font-size:10px; font-family:'Nunito'; font-weight:800;
+    display:flex; align-items:center; justify-content:center; text-align:center; opacity:0; transition:opacity .15s;
+  }
+  .profile-avatar:hover .avatar-edit-hint{ opacity:1; }
+  .profile-fields{ flex:1 1 220px; min-width:200px; max-width:420px; }
+  .profile-nick{
+    display:block; /* <input> es inline-block por defecto: en pantallas anchas quedaba al lado de
+       la bio en vez de arriba, porque los dos (con max-width) entraban en la misma línea */
+    font-family:'Bungee'; font-size:16px; color:#f6ecd2; background:transparent; border:none; border-bottom:2px solid transparent;
+    padding:2px 0; width:100%; max-width:280px;
+  }
+  .profile-nick:focus{ outline:none; border-bottom-color: var(--orange); }
+  .profile-bio{
+    display:block; /* mismo motivo que .profile-nick: forzar que quede siempre debajo, nunca al lado */
+    font-family:'Nunito'; font-size:12px; color:#c9bfe0; background:transparent; border:none; border-bottom:1px dashed transparent;
+    padding:4px 0; width:100%; max-width:420px; resize:none; margin-top:4px;
+  }
+  .profile-bio:focus{ outline:none; border-bottom-color:#4a4460; }
+
+  /* ---------- Stock de consumibles (Inventario): íconos de la tienda + burbuja con la cantidad ---------- */
+  .stock-grid{ display:flex; flex-wrap:wrap; gap:16px 20px; }
+  .stock-item{ position:relative; width:78px; display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .stock-icon{
+    width:64px; height:86px; display:flex; align-items:center; justify-content:center;
+    font-size:46px; line-height:1; transition: opacity .2s ease, filter .2s ease;
+  }
+  .stock-icon img{ width:100%; height:100%; object-fit:contain; display:block; }
+  .stock-ticket .stock-icon{ filter: drop-shadow(0 0 8px rgba(224,169,58,0.7)); }
+  .stock-badge{
+    position:absolute; top:-6px; right:-2px; min-width:26px; height:26px; padding:0 6px; border-radius:999px;
+    background:var(--gold); color:#2b2013; font-family:'Bungee'; font-size:12px;
+    display:flex; align-items:center; justify-content:center; box-shadow:0 3px 8px rgba(0,0,0,0.4); z-index:10;
+  }
+  .stock-label{ font-size:10px; font-weight:700; color:#c9bfe0; text-align:center; line-height:1.25; }
+  /* Sin stock: ícono apagado y burbuja gris, para que se vea que la categoría existe pero está vacía */
+  .stock-zero .stock-icon{ opacity:0.35; filter: grayscale(0.8); }
+  .stock-zero .stock-badge{ background:#3a2f52; color:#c9bfe0; }
+
+  /* ---------- Estadísticas del perfil ---------- */
+  .stats-grid{
+    display:grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap:10px; margin-bottom:16px;
+  }
+  .stats-grid-sm{ grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); }
+  .stat-card{
+    background: linear-gradient(165deg, var(--bg-night-2), #1a1430); border:2px solid #3a2f52; border-radius:12px;
+    padding:10px 6px; text-align:center; display:flex; flex-direction:column; align-items:center;
+    justify-content:center; gap:3px; min-height:84px;
+  }
+  .stat-card .rarity-badge{ width:28px; height:28px; }
+  .stat-icon{ font-size:19px; line-height:1; }
+  .stat-value{ font-family:'Bungee'; font-size:16px; color:#f6ecd2; line-height:1.1; }
+  .stat-label{ font-size:9.5px; color:#c9bfe0; line-height:1.25; }
+
+  @media (max-width:520px){ .grid{ grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap:8px; } }
+</style>
+</head>
+<body>
+
+<nav class="mainnav">
+  <div class="nav-inner">
+    <div class="nav-top">
+      <img src="imagenes/logo.png" alt="Dragon Ball Z Dokkan Battle Figuritas" class="nav-logo" onerror="this.style.display='none'">
+      <div class="coin-pill" id="coinPill">
+        <span id="coinIcon"></span>
+        <span id="coinAmount">0</span>
+      </div>
+    </div>
+    <div class="nav-items">
+      <div class="nav-item"><button class="nav-btn active" data-view="album">Álbum</button></div>
+      <div class="nav-item"><button class="nav-btn" data-view="inventario">Inventario</button></div>
+      <div class="nav-item"><button class="nav-btn" data-view="tienda">Tienda de Baba</button></div>
+      <div class="nav-item"><button class="nav-btn" data-view="perfil">Perfil</button></div>
+      <div class="nav-item"><button class="nav-btn" data-view="logros">Logros</button></div>
+      <div class="nav-item"><button class="nav-btn" data-view="contacto">Contacto</button></div>
+      <div class="nav-item"><button class="nav-btn" data-view="noticias">Noticias</button></div>
+    </div>
+  </div>
+</nav>
+
+<div class="wrap">
+
+  <!-- ============ VISTA ÁLBUM ============ -->
+  <section class="view active" id="view-album">
+
+    <div class="pack-panel">
+      <div class="pack-visual" id="packVisual">
+        <div class="pack-stack" id="packStack"></div>
+        <div class="pack-stack-badge" id="packStackBadge"></div>
+      </div>
+      <div class="pack-info">
+        <h2>Sobre diario · 5 figuritas</h2>
+        <p id="packText">Tenés un sobre disponible. Cada sobre trae 5 figuritas, con buena chance de traer al menos una SSR o superior.</p>
+        <div id="ticketBadge" class="ticket-badge" style="display:none;">🎫 Ticket de la suerte activo</div>
+        <div id="packAction"></div>
+      </div>
+    </div>
+
+    <div class="extras-row">
+      <div class="extra-box">
+        <h3>CÓDIGO DE CANJE</h3>
+        <div class="extra-sobres-line" id="extraSobresLine">Sobres en tu pila: 0</div>
+        <div class="code-row">
+          <input type="text" id="codeInput" placeholder="Ingresá tu código">
+          <button class="btn small" id="codeBtn">Canjear</button>
+        </div>
+        <div class="code-msg" id="codeMsg"></div>
+      </div>
+      <div class="extra-box extra-box-promo">
+        <img src="imagenes/promo.png" alt="Promoción" class="promo-img" onerror="this.style.display='none'; this.parentElement.classList.add('promo-empty');">
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <div>
+        <div class="progress-label" id="progressLabel">0 / 63 conseguidas</div>
+        <div class="progress-bar"><div id="progressFill" style="width:0%"></div></div>
+        <div class="progress-label progress-label-alt" id="progressAltLabel">0 / 0 alternativas conseguidas</div>
+        <div class="progress-bar alt"><div id="progressAltFill" style="width:0%"></div></div>
+      </div>
+      <div class="toolbar-actions">
+        <button class="btn secondary" id="exportBtn">Exportar progreso</button>
+        <button class="btn secondary" id="importBtn">Importar</button>
+        <button class="btn secondary" id="resetBtn">Reiniciar</button>
+        <input type="file" id="importFile" accept="application/json" style="display:none">
+      </div>
+    </div>
+
+    <div class="album"><div class="grid" id="grid"></div></div>
+
+    <div class="share-row">
+      <span>Compartir mi álbum:</span>
+      <a class="share-btn wa" id="shareWA" title="WhatsApp" target="_blank" rel="noopener">🟢</a>
+      <a class="share-btn tw" id="shareTW" title="X / Twitter" target="_blank" rel="noopener">✕</a>
+      <a class="share-btn fb" id="shareFB" title="Facebook" target="_blank" rel="noopener">f</a>
+      <button class="share-btn cp" id="shareCopy" title="Copiar texto">⧉</button>
+    </div>
+  </section>
+
+  <!-- ============ VISTA TIENDA ============ -->
+  <section class="view" id="view-tienda">
+    <div class="pack-panel shop-baba-panel" style="margin-bottom:6px;">
+      <img src="imagenes/UranaiBaba.png" alt="Uranai Baba" class="baba-float shop-baba-img" onerror="this.style.display='none'">
+      <div class="pack-info shop-baba-info">
+        <h2>Tienda de Baba</h2>
+        <p>Las figuritas repetidas se convierten automáticamente en <strong>monedas rojas</strong>. Usalas acá para conseguir más sobres o darle un efecto especial a tus figuritas favoritas.</p>
+      </div>
+    </div>
+    <div class="shop-grid">
+      <div class="shop-item">
+        <div class="icon-wrap icon-wrap-pack"><img src="imagenes/sobredbsaga.png" alt="Sobre de 5" class="shop-pack-img" onerror="this.style.display='none'"></div>
+        <h4>Sobre de 5 figuritas</h4>
+        <p>Se suma a tu pila de sobres para que lo abras cuando quieras.</p>
+        <div class="shop-price"><span id="shopPackPriceIcon"></span><span id="shopPackPrice"></span></div>
+        <div class="shop-limit" id="limit_shop5"></div>
+        <button class="btn small" id="buyPackBtn">Comprar</button>
+      </div>
+      <div class="shop-item">
+        <div class="icon-wrap icon-wrap-pack"><img src="imagenes/sobredbsaga2.png" alt="Sobre de 10" class="shop-pack-img" onerror="this.style.display='none'"></div>
+        <h4>Sobre de 10 figuritas</h4>
+        <p>La versión grande del sobre: 10 figuritas de una sola vez. Se suma a tu pila.</p>
+        <div class="shop-price"><span id="shopPack10PriceIcon"></span><span id="shopPack10Price"></span></div>
+        <div class="shop-limit" id="limit_shop10"></div>
+        <button class="btn small" id="buyPack10Btn">Comprar</button>
+      </div>
+      <div class="shop-item">
+        <div class="icon-wrap icon-wrap-pack"><img src="imagenes/sobredbsagaE.png" alt="Sobre exclusivo" class="shop-pack-img" onerror="this.style.display='none'"></div>
+        <h4>Sobre exclusivo</h4>
+        <p>Buenas chances de traer una figurita UR o superior. Se suma a tu pila con su propio diseño.</p>
+        <div class="shop-price"><span id="shopExclusivePriceIcon"></span><span id="shopExclusivePrice"></span></div>
+        <div class="shop-limit" id="limit_shopE"></div>
+        <button class="btn small" id="buyExclusiveBtn">Comprar</button>
+      </div>
+      <div class="shop-item shop-item-legendary">
+        <div class="icon-wrap icon-wrap-pack"><img src="imagenes/sobredbsagaL.png" alt="Sobre Legendario" class="shop-pack-img" onerror="this.style.display='none'"></div>
+        <h4>Sobre Legendario</h4>
+        <p>El más caro de todos: garantiza al menos una figurita LR. Se suma a tu pila con su propio diseño.</p>
+        <div class="shop-price"><span id="shopLegendaryPriceIcon"></span><span id="shopLegendaryPrice"></span></div>
+        <div class="shop-limit" id="limit_legendary"></div>
+        <button class="btn small" id="buyLegendaryBtn">Comprar</button>
+      </div>
+      <div class="shop-item">
+        <div class="icon-wrap" id="shopFoilIcon"></div>
+        <h4>Efecto Foil</h4>
+        <p>Aplicale un brillo animado tipo foil a la figurita que elijas (no disponible para LR, que ya tienen su propia animación).</p>
+        <div class="shop-price"><span id="shopFoilPriceIcon"></span><span id="shopFoilPrice"></span></div>
+        <div class="shop-limit" id="limit_foil"></div>
+        <button class="btn small" id="buyFoilBtn">Elegir figurita</button>
+      </div>
+      <div class="shop-item">
+        <div class="icon-wrap icon-wrap-big" id="shopTicketIcon">🎫</div>
+        <h4>Ticket de la suerte</h4>
+        <p>Garantiza al menos una figurita SSR o superior en el próximo sobre que abras.</p>
+        <div class="shop-price"><span id="shopTicketPriceIcon"></span><span id="shopTicketPrice"></span></div>
+        <div class="shop-limit" id="limit_ticket"></div>
+        <button class="btn small" id="buyTicketBtn">Comprar</button>
+      </div>
+      <div class="shop-item">
+        <div class="icon-wrap icon-wrap-tall">
+          <div class="toploader">
+            <div class="tlb-card"><div class="mini-card-fill"></div></div>
+            <div class="tlb-slit"></div>
+          </div>
+        </div>
+        <h4>Top Loader</h4>
+        <p>Guardá una figurita pegada del álbum, protegida en tu perfil. Después la podés volver a pegar cuando quieras.</p>
+        <div class="shop-price"><span id="shopToploaderPriceIcon"></span><span id="shopToploaderPrice"></span></div>
+        <div class="shop-limit" id="limit_toploader"></div>
+        <button class="btn small" id="buyToploaderBtn">Comprar</button>
+      </div>
+      <div class="shop-item">
+        <div class="icon-wrap icon-wrap-tall">
+          <div class="card-slab">
+            <div class="slab-label"><span class="slab-grade grade-Z">Z</span></div>
+            <div class="slab-window"><div class="mini-card-fill"></div></div>
+          </div>
+        </div>
+        <h4>Expositor</h4>
+        <p>Graduá una figurita guardada en un Top Loader: sale con calidad Z, A, B o C. Ya graduada, se puede mostrar en tu expositor o vender (nunca vuelve al álbum).</p>
+        <div class="shop-price"><span id="shopExpositorPriceIcon"></span><span id="shopExpositorPrice"></span></div>
+        <div class="shop-limit" id="limit_expositor"></div>
+        <button class="btn small" id="buyExpositorBtn">Comprar</button>
+      </div>
+      <div class="shop-item">
+        <div class="icon-wrap icon-wrap-big" id="shopMysteryIcon">🎁</div>
+        <h4>Caja Sorpresa de Baba</h4>
+        <p>Baba te da un regalo al azar: un ticket de la suerte, un Top Loader, un Expositor o un Sobre de 5.</p>
+        <div class="shop-price"><span id="shopMysteryPriceIcon"></span><span id="shopMysteryPrice"></span></div>
+        <div class="shop-limit" id="limit_mystery"></div>
+        <button class="btn small" id="buyMysteryBtn">Comprar</button>
+      </div>
+    </div>
+    <div class="extra-sobres-line" id="ticketLine" style="text-align:center; margin-top:10px;"></div>
+    <div class="shop-note">Precios y recompensas son valores iniciales de prueba, se pueden ajustar más adelante. Los límites diarios de cada ítem existen para cuidar la economía del juego (no aplican en Modo Prueba).</div>
+  </section>
+
+  <!-- ============ VISTA INVENTARIO ============ -->
+  <section class="view" id="view-inventario">
+    <div class="pack-panel" style="margin-bottom:6px;">
+      <div class="pack-info" style="flex:1 1 100%;">
+        <h2>Inventario</h2>
+        <p>Top Loaders y cartas graduadas que todavía no están en el álbum ni en el expositor. Desde acá las volvés a pegar, las graduás o las vendés.</p>
+      </div>
+    </div>
+    <div class="perfil-section">
+      <h4 class="perfil-subtitle" style="margin-top:0;">Stock disponible</h4>
+      <p class="perfil-desc">Tus sobres y consumibles listos para usar. Los que no tenés aparecen apagados.</p>
+      <div class="stock-grid" id="stockGrid"></div>
+    </div>
+    <div class="perfil-section">
+      <h4 class="perfil-subtitle" style="margin-top:0;">Top Loaders</h4>
+      <div class="tl-grid" id="topLoaderGrid"></div>
+      <h4 class="perfil-subtitle">Firmadas repetidas de Akira Toriyama</h4>
+      <p class="perfil-desc">Cuando te toca una firma en una figurita que ya tenías, no se vende sola: queda acá, hasta <span id="signedDupeMaxLabel"></span> a la vez. Desde acá la subís al álbum (reemplaza a la copia sin firmar), la mandás a un Top Loader para graduarla después, o la vendés directo por monedas.</p>
+      <div class="extra-sobres-line" id="signedDupeCountLine">Firmadas guardadas: 0</div>
+      <div class="tl-grid" id="signedDupeGrid"></div>
+      <h4 class="perfil-subtitle">Cartas graduadas</h4>
+      <div class="tl-grid" id="gradedGrid"></div>
+    </div>
+  </section>
+
+  <!-- ============ VISTA PERFIL ============ -->
+  <section class="view" id="view-perfil">
+
+    <div class="perfil-section">
+      <div class="profile-header">
+        <div class="profile-avatar" id="profileAvatar" title="Tocá para cambiar tu foto">
+          <span id="profileAvatarEmoji">🙂</span>
+          <img id="profileAvatarImg" style="display:none;" alt="">
+          <div class="avatar-edit-hint">Cambiar foto</div>
+        </div>
+        <div class="profile-fields">
+          <input type="text" id="profileNick" class="profile-nick" placeholder="Tu nombre de entrenador" maxlength="24">
+          <textarea id="profileBio" class="profile-bio" rows="2" maxlength="140" placeholder="Escribí una bio corta..."></textarea>
+        </div>
+        <input type="file" id="profileAvatarFile" accept="image/*" style="display:none;">
+      </div>
+      <h3 style="margin-top:4px;">Expositor del Perfil</h3>
+      <p class="perfil-desc">Una selección exclusiva de hasta <span id="expoMaxLabel"></span> figuritas graduadas para mostrar.</p>
+      <div class="expo-showcase" id="expositorShowcase"></div>
+    </div>
+
+    <div class="perfil-section">
+      <h3>Opciones</h3>
+      <p class="perfil-desc">Preferencias del juego. Se guardan en este navegador.</p>
+      <div class="option-row">
+        <div class="option-text">
+          <h4>Revelado de sobres</h4>
+          <p>Elegí cómo aparecen las figuritas de un sobre al abrirlo.</p>
+        </div>
+        <div class="option-seg" id="revealModeSeg">
+          <button class="option-seg-btn" data-mode="all" type="button">Todas juntas</button>
+          <button class="option-seg-btn" data-mode="one" type="button">De a una</button>
+          <button class="option-seg-btn" data-mode="stack" type="button">Mazo en mano</button>
+        </div>
+      </div>
+      <div class="option-row">
+        <div class="option-text">
+          <h4>Silenciar sonidos</h4>
+          <p>Apaga los efectos de sonido y el audio de los videos de invocación.</p>
+        </div>
+        <div class="option-control">
+          <span class="option-switch-label" id="muteLabel">Sonido activado</span>
+          <label class="switch" title="Silenciar sonidos">
+            <input type="checkbox" id="muteToggle">
+            <span class="switch-slider"></span>
+          </label>
+        </div>
+      </div>
+      <div class="option-row">
+        <div class="option-text">
+          <h4>Pantalla completa</h4>
+          <p>Jugá sin la barra del navegador. También podés entrar y salir con la tecla <span class="kbd">F11</span>.</p>
+        </div>
+        <button class="btn small" id="fullscreenBtn" type="button">Pantalla completa</button>
+      </div>
+    </div>
+
+    <div class="perfil-section">
+      <h3>Estadísticas</h3>
+      <p class="perfil-desc">Todo lo que acumulaste desde que empezaste a jugar.</p>
+      <div class="stats-grid" id="statsGridMain"></div>
+      <h4 class="perfil-subtitle">Sobres abiertos por tipo</h4>
+      <div class="stats-grid stats-grid-sm" id="statsGridPacks"></div>
+      <h4 class="perfil-subtitle">Figuritas conseguidas por rareza</h4>
+      <div class="stats-grid stats-grid-sm" id="statsGridRarity"></div>
+    </div>
+  </section>
+
+  <!-- ============ VISTA LOGROS ============ -->
+  <section class="view" id="view-logros">
+    <div class="pack-panel" style="margin-bottom:6px;">
+      <div class="pack-info" style="flex:1 1 100%;">
+        <h2>Logros</h2>
+        <p>Cada uno te da una recompensa la primera vez que lo cumplís.</p>
+        <div class="progress-label" id="achProgressLabel" style="margin-top:6px;"></div>
+      </div>
+    </div>
+    <div class="ach-grid" id="achGrid"></div>
+  </section>
+
+  <!-- ============ VISTA CONTACTO ============ -->
+  <section class="view" id="view-contacto">
+    <div class="placeholder-box">
+      <h3>Contacto</h3>
+      <p>Acá vamos a poner una forma de contacto (mail, formulario o redes) para sugerencias y reportes de bugs. Todavía no la definimos.</p>
+    </div>
+  </section>
+
+  <!-- ============ VISTA NOTICIAS ============ -->
+  <section class="view" id="view-noticias">
+    <div class="placeholder-box">
+      <h3>Noticias</h3>
+      <p>Acá van a aparecer novedades del álbum: sets nuevos, eventos y cambios. Todavía no armamos el contenido.</p>
+    </div>
+  </section>
+
+  <footer>Prototipo fan-made sin fines de lucro · arte y datos de personajes vía Dokkan Battle / Dragon Ball, usados solo con fines ilustrativos.</footer>
+</div>
+
+<div class="overlay" id="revealOverlay">
+  <button class="close-x" id="revealClose">&times;</button>
+  <div class="modal-wrap">
+    <div class="modal-title">¡Abriste tu sobre!</div>
+    <div class="modal-sub" id="revealSubText">Tocá la figurita que brilla para revelarla</div>
+    <div class="pull-stack-area" id="pullStackArea">
+      <div class="pull-stack-deck">
+        <div class="pull-stack-shadow s4" data-depth="4"></div>
+        <div class="pull-stack-shadow s3" data-depth="3"></div>
+        <div class="pull-stack-shadow s2" data-depth="2"></div>
+        <div class="pull-stack-shadow s1" data-depth="1"></div>
+        <div class="modal-card pull-card-back pull-stack-card" id="pullStackCard"></div>
+      </div>
+      <div class="pull-stack-info" id="pullStackInfo" style="visibility:hidden;"></div>
+      <div class="pull-stack-hint" id="pullStackHint">Tocá para revelar</div>
+      <div class="pull-stack-counter" id="pullStackCounter"></div>
+    </div>
+    <div class="pull-grid" id="pullGrid"></div>
+    <button class="btn" id="pasteBtn">Continuar</button>
+  </div>
+</div>
+
+<div class="overlay" id="detailOverlay">
+  <button class="close-x" id="detailClose">&times;</button>
+  <div class="modal-wrap">
+    <div class="modal-card tilt-card" id="detailCard">
+      <img id="detailImg" alt="">
+      <canvas id="detailAnimCanvas" class="modal-card-canvas" width="426" height="568"></canvas>
+      <div class="card-glare" id="detailGlare"></div>
+    </div>
+    <div class="modal-title" id="detailTitle"></div>
+    <div class="modal-sub" id="detailSub"></div>
+    <div class="variant-switch" id="variantSwitch"></div>
+    <button class="btn secondary" id="detailToTopLoaderBtn" style="display:none;">Guardar en Top Loader</button>
+  </div>
+</div>
+
+<div class="overlay" id="foilPickerOverlay">
+  <button class="close-x" id="foilPickerClose">&times;</button>
+  <div class="modal-wrap">
+    <div class="modal-title">Elegí una figurita para el efecto Foil</div>
+    <div class="modal-sub" id="foilPickerSub"></div>
+    <div class="foil-picker-grid" id="foilPickerGrid"></div>
+  </div>
+</div>
+
+<div class="overlay" id="packOpenOverlay">
+  <button class="close-x" id="packOpenClose">&times;</button>
+  <div class="modal-wrap">
+    <div class="modal-title" id="packBigLabel"></div>
+    <div class="pack-big-row">
+      <button class="pack-arrow" id="packArrowLeft" title="Sobre anterior">‹</button>
+      <div class="pack-big" id="packBig">
+        <img class="full" id="packBigArt" src="imagenes/sobredbsaga.png" alt="Sobre Dragon Ball Saga">
+        <div class="half top" id="packBigTop"><img src="imagenes/sobredbsaga.png" alt=""></div>
+        <div class="half bottom" id="packBigBottom"><img src="imagenes/sobredbsaga.png" alt=""></div>
+      </div>
+      <button class="pack-arrow" id="packArrowRight" title="Sobre siguiente">›</button>
+    </div>
+    <div class="modal-sub" id="packBigHint">Tocá el sobre para abrirlo</div>
+    <div class="modal-sub" id="packBigTicketNote" style="color:var(--gold); display:none;">🎫 Vas a usar un ticket de la suerte en este sobre</div>
+  </div>
+</div>
+
+<div class="ach-toast" id="achToast">
+  <div class="ach-toast-icon" id="achToastIcon"></div>
+  <div class="ach-toast-text">
+    <div class="ach-toast-label">Logro desbloqueado</div>
+    <div class="ach-toast-title" id="achToastTitle"></div>
+  </div>
+</div>
+
+<div class="lr-video-overlay" id="lrVideoOverlay">
+  <video id="lrVideoEl" class="lr-video" playsinline></video>
+  <button class="btn secondary lr-video-skip" id="lrVideoSkip">Saltar ›</button>
+</div>
+
+<div class="overlay" id="gradeRevealOverlay">
+  <button class="close-x" id="gradeRevealClose">&times;</button>
+  <div class="modal-wrap">
+    <div class="modal-title" id="gradeRevealTitle">Metiendo la figurita en el case…</div>
+    <div class="card-slab-big" id="gradeRevealSlab">
+      <div class="slab-big-label">
+        <div class="slab-big-brand">DBZ · GRADING</div>
+        <div class="slab-big-gradebox"><span class="slab-grade" id="gradeRevealGradeLetter">?</span></div>
+        <div class="slab-big-id" id="gradeRevealCardNum"></div>
+      </div>
+      <div class="slab-big-window">
+        <img id="gradeRevealImg" alt="">
+      </div>
+      <div class="slab-big-footer" id="gradeRevealFooter">Sellando…</div>
+    </div>
+    <button class="btn" id="gradeRevealOk" style="display:none;">Continuar</button>
+  </div>
+</div>
+
+<div class="overlay" id="toploaderOverlay">
+  <button class="close-x" id="toploaderClose">&times;</button>
+  <div class="modal-wrap">
+    <div class="toploader-stage" id="toploaderStage"></div>
+    <div class="modal-title" id="toploaderTitle"></div>
+    <div class="modal-sub" id="toploaderSub"></div>
+    <div class="tl-detail-actions" id="toploaderActions"></div>
+  </div>
+</div>
+
+<div class="overlay" id="gradedDetailOverlay">
+  <button class="close-x" id="gradedDetailClose">&times;</button>
+  <div class="modal-wrap">
+    <div class="card-slab-big tilt-card" id="gradedDetailSlab">
+      <div class="slab-big-label">
+        <div class="slab-big-brand">DBZ · GRADING</div>
+        <div class="slab-big-gradebox"><span class="slab-grade" id="gradedDetailGradeLetter"></span></div>
+        <div class="slab-big-id" id="gradedDetailCardNum"></div>
+      </div>
+      <div class="slab-big-window">
+        <img id="gradedDetailImg" alt="">
+        <canvas id="gradedDetailAnimCanvas" class="modal-card-canvas" width="426" height="568"></canvas>
+      </div>
+      <div class="slab-big-footer" id="gradedDetailFooter"></div>
+      <div class="card-glare" id="gradedDetailGlare"></div>
+    </div>
+    <div class="modal-title" id="gradedDetailTitle"></div>
+    <div class="modal-sub" id="gradedDetailSub"></div>
+  </div>
+</div>
+
+<!--
+  Animación de cartas LR con LWF (runtime de gree/lwf). Es 100% opcional y con fallback:
+  si estos scripts no cargan, o si el .lwf/las texturas de una carta no están, o si abriste
+  este HTML con doble click (file://), las LR simplemente se ven como imagen fija, igual que
+  antes. Solo se activa la animación cuando el archivo se sirve por http(s) Y existe la carpeta
+  assets/<id>/ de esa carta en particular. Ver la sección "LWF" del script principal para el
+  detalle de cómo se engancha.
+-->
+<script src="lwf.js"></script>
+<script src="card-anim.js"></script>
+
+<!-- Datos de la saga (cartas, arte de sobres, promo). Se carga como archivo aparte, igual que
+     lwf.js o card-anim.js, y NO con fetch, para que este HTML siga abriendo con doble click
+     sin depender de un servidor. El "?v=" es cache-busting: sin esto, el navegador puede seguir
+     sirviendo una copia vieja cacheada de este archivo después de actualizarlo. Subir el número
+     cada vez que se reemplaza data/dbsaga.js por una versión nueva. -->
+<script src="data/dbsaga.js?v=2"></script>
+
+<script>
+/* ============ DATA ============
+   Los datos de cada saga (cartas, arte de sobres, imagen promo) viven en su propio archivo
+   .js dentro de /data — se cargan como archivo aparte, igual que lwf.js (buscá la etiqueta
+   que apunta a "data/dbsaga.js" más arriba). Eso, y no fetch, es a propósito: así este HTML
+   sigue abriendo con doble click sin depender de ningún servidor, y el JSON no queda mezclado
+   acá adentro. Para sumar una saga nueva a futuro: ver las instrucciones arriba de data/dbsaga.js. */
+const SAGAS = [ SAGA_DB_SAGA ];
+const CURRENT_SAGA = SAGAS[0];
+const CARDS = CURRENT_SAGA.cards;
+
+
+
+
+const RARITY_WEIGHT = { N:60, R:50, SR:30, SSR:15, UR:6, LR:1.5 };
+const ALT_MULTIPLIER = 0.15;
+const PACK_COOLDOWN_MS = 4 * 60 * 60 * 1000; // 4 horas
+const SSR_PLUS_FLOOR_CHANCE = 0.10;
+const UR_PLUS_FLOOR_CHANCE = 0.35; // piso del sobre exclusivo
+
+const RARITY_COLORS = { N:'var(--n-color)', R:'var(--r-color)', SR:'var(--sr-color)', SSR:'var(--ssr-color)', UR:'var(--ur-color)', LR:null };
+const COIN_VALUE = { N:3, R:5, SR:12, SSR:30, UR:80, LR:200 };
+/* Firma de Akira Toriyama: puede aparecer en CUALQUIER carta, sin importar la rareza.
+   Muy baja probabilidad, y vale más que una LR (incluso sobre una N) tanto al convertirse
+   en monedas como al graduarla. */
+const SIGNED_SIGNATURE_CHANCE = 0.002; // ~0.2% por figurita revelada
+const SIGNED_COIN_VALUE = 500;         // > COIN_VALUE.LR (200)
+const SIGNED_EXPOSITOR_BASE_VALUE = 3000; // > EXPOSITOR_BASE_VALUE.LR (1200)
+
+const SHOP_PACK_COST = 150;
+const SHOP_PACK10_COST = 260;
+const SHOP_EXCLUSIVE_COST = 750;
+const SHOP_LEGENDARY_COST = 2200;
+const SHOP_FOIL_COST = 250;
+const SHOP_TICKET_COST = 500;
+const SHOP_TOPLOADER_COST = 80;
+const SHOP_EXPOSITOR_COST = 150;
+const SHOP_MYSTERY_COST = 220;
+const CRAFT_COST = SHOP_TOPLOADER_COST + SHOP_EXPOSITOR_COST; // piso de venta de una carta graduada
+const MAX_EXPOSITOR_DISPLAY = 6;
+
+/* ---- Límites de compra diarios por ítem, pensados para cuidar la economía ----
+   (evitan que alguien vacíe el álbum de golpe comprando con monedas acumuladas).
+   Se resetean solos todos los días. En Modo Prueba no aplican: ahí todo es gratis e ilimitado. */
+const SHOP_LIMITS = {
+  shop5: 8,
+  shop10: 4,
+  shopE: 2,
+  foil: 5,
+  ticket: 3,
+  toploader: 10,
+  expositor: 6,
+  mystery: 3
+};
+/* ---- Límites de por vida: a diferencia de SHOP_LIMITS, estos NUNCA se resetean solos.
+   El Sobre Legendario es único por cuenta (se puede volver a comprar si se reinicia la partida). */
+const SHOP_LIFETIME_LIMITS = {
+  legendary: 1
+};
+const LS_SHOP_PURCHASES = 'dba_dragonball_shop_purchases_v1';
+const LS_SHOP_LIFETIME = 'dba_dragonball_shop_lifetime_v1';
+function todayKey(){ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+function getShopPurchases(){
+  try{
+    const raw = JSON.parse(localStorage.getItem(LS_SHOP_PURCHASES) || 'null');
+    if(raw && raw.date === todayKey()) return raw.counts || {};
+  }catch(e){}
+  return {};
+}
+function saveShopPurchases(counts){ localStorage.setItem(LS_SHOP_PURCHASES, JSON.stringify({ date: todayKey(), counts })); }
+function getLifetimePurchases(){
+  try{ return JSON.parse(localStorage.getItem(LS_SHOP_LIFETIME) || '{}'); }catch(e){ return {}; }
+}
+function saveLifetimePurchases(counts){ localStorage.setItem(LS_SHOP_LIFETIME, JSON.stringify(counts)); }
+function getPurchaseCount(key){ return getShopPurchases()[key] || 0; }
+function getLifetimeCount(key){ return getLifetimePurchases()[key] || 0; }
+function remainingPurchases(key){
+  if(SHOP_LIFETIME_LIMITS[key] != null) return Math.max(0, SHOP_LIFETIME_LIMITS[key] - getLifetimeCount(key));
+  const max = SHOP_LIMITS[key];
+  if(max == null) return Infinity;
+  return Math.max(0, max - getPurchaseCount(key));
+}
+function canPurchase(key){ return getTestMode() || remainingPurchases(key) > 0; }
+function registerPurchase(key){
+  if(getTestMode()) return; // modo prueba: no se gasta ni se cuenta contra el límite
+  if(SHOP_LIFETIME_LIMITS[key] != null){
+    const counts = getLifetimePurchases();
+    counts[key] = (counts[key] || 0) + 1;
+    saveLifetimePurchases(counts);
+    return;
+  }
+  const counts = getShopPurchases();
+  counts[key] = (counts[key] || 0) + 1;
+  saveShopPurchases(counts);
+}
+function limitReachedMsg(key){
+  if(SHOP_LIFETIME_LIMITS[key] != null) return 'Este ítem es único por cuenta: ya lo compraste.';
+  return 'Ya llegaste al límite diario de compras para este ítem. Probá de nuevo mañana.';
+}
+function refreshShopLimits(){
+  const keys = new Set([...Object.keys(SHOP_LIMITS), ...Object.keys(SHOP_LIFETIME_LIMITS)]);
+  for(const key of keys){
+    const el = document.getElementById('limit_' + key);
+    if(!el) continue;
+    const itemEl = el.closest('.shop-item');
+    if(getTestMode()){ el.textContent = 'Modo prueba: sin límite'; if(itemEl) itemEl.classList.remove('shop-item-sold'); continue; }
+    const left = remainingPurchases(key);
+    /* Los ítems únicos por cuenta (el Sobre Legendario) dejan de resaltar una vez comprados */
+    if(itemEl) itemEl.classList.toggle('shop-item-sold', SHOP_LIFETIME_LIMITS[key] != null && left <= 0);
+    if(SHOP_LIFETIME_LIMITS[key] != null){
+      el.textContent = left > 0 ? 'Único por cuenta' : 'Único por cuenta · ya comprado';
+    } else {
+      el.textContent = left > 0 ? ('Quedan ' + left + '/' + SHOP_LIMITS[key] + ' hoy') : 'Límite diario alcanzado';
+    }
+  }
+}
+
+/* Probabilidad de cada calidad al graduar (pesos relativos) y multiplicador de venta por calidad */
+const GRADE_WEIGHTS = { Z:5, A:20, B:35, C:40 };
+const GRADE_MULTIPLIER = { Z:8, A:5, B:3, C:1.5 };
+/* Valor base de una figurita graduada según su rareza (más alto que el de una repetida común) */
+const EXPOSITOR_BASE_VALUE = { N:20, R:40, SR:90, SSR:220, UR:500, LR:1200 };
+
+/* Cada tipo de sobre: cuántas cartas trae, qué arte usa, y el piso de rareza garantizada */
+const PACK_TYPES = {
+  daily:  { count:5,  art:'imagenes/sobredbsaga.png',  tier:'ssr', label:'Sobre diario' },
+  shop5:  { count:5,  art:'imagenes/sobredbsaga.png',  tier:'ssr', label:'Sobre de 5' },
+  redeem: { count:5,  art:'imagenes/sobredbsaga.png',  tier:'ssr', label:'Sobre de código' },
+  shop10: { count:10, art:'imagenes/sobredbsaga2.png', tier:'ssr', label:'Sobre de 10' },
+  shopE:  { count:5,  art:'imagenes/sobredbsagaE.png', tier:'ur',  label:'Sobre exclusivo' },
+  legendary: { count:5, art:'imagenes/sobredbsagaL.png', tier:'lr', label:'Sobre Legendario' },
+};
+
+const LS_COLLECTION = 'dba_dragonball_collection_v1';
+const LS_LAST_OPEN = 'dba_dragonball_lastopen_v1';
+const LS_INVENTORY = 'dba_dragonball_inventory_v1';
+const LS_REDEEMED = 'dba_dragonball_redeemed_v1';
+const LS_TESTMODE = 'dba_dragonball_testmode_v1';
+const LS_REVEAL_MODE = 'dba_dragonball_reveal_mode_v1'; /* 'all' = todas juntas (clásico) | cualquier otra cosa (o nada) = de a una */
+/* 'all' = todas juntas (clásico) | 'one' = de a una, en la grilla chica | 'stack' = mazo en mano,
+   grande, una arriba de la otra. Cualquier valor desconocido (o ninguno todavía) cae en 'one'. */
+function getRevealMode(){
+  const v = localStorage.getItem(LS_REVEAL_MODE);
+  return (v === 'all' || v === 'stack') ? v : 'one';
+}
+function setRevealMode(v){ localStorage.setItem(LS_REVEAL_MODE, v); }
+const LS_MUTED = 'dba_dragonball_muted_v1';
+function isMuted(){ return localStorage.getItem(LS_MUTED) === '1'; }
+function setMuted(v){ localStorage.setItem(LS_MUTED, v ? '1' : '0'); }
+const LS_COINS = 'dba_dragonball_coins_v1';
+const LS_LUCKY_TICKETS = 'dba_dragonball_luckytickets_v1';
+const LS_STATS = 'dba_dragonball_stats_v1';
+const LS_ACHIEVEMENTS = 'dba_dragonball_achievements_v1';
+const LS_TOPLOADERS_EMPTY = 'dba_dragonball_toploaders_empty_v1';
+const LS_EXPOSITORS_EMPTY = 'dba_dragonball_expositors_empty_v1';
+const LS_TOPLOADED_CARDS = 'dba_dragonball_toploaded_cards_v1';
+const LS_GRADED_CARDS = 'dba_dragonball_graded_cards_v1';
+const LS_SIGNED_DUPES = 'dba_dragonball_signed_dupes_v1';
+const SIGNED_DUPE_MAX_SLOTS = 5; /* apartado especial para firmadas repetidas: si está lleno, se venden solas */
+function getSignedDupes(){ try{ return JSON.parse(localStorage.getItem(LS_SIGNED_DUPES) || '[]'); }catch(e){ return []; } }
+function setSignedDupes(list){ localStorage.setItem(LS_SIGNED_DUPES, JSON.stringify(list)); }
+const LS_PROFILE_NICK = 'dba_dragonball_profile_nick_v1';
+const LS_PROFILE_BIO = 'dba_dragonball_profile_bio_v1';
+const LS_PROFILE_AVATAR = 'dba_dragonball_profile_avatar_v1';
+
+/* Para sumar un código nuevo: agregá una línea acá con { packs: { tipo: cantidad, ... } }.
+   Tipos válidos: daily, redeem, shop10, shopE (mismos nombres que usan los logros). */
+const REDEEM_CODES = {
+  'BULMAPANTIES': { packs: { redeem: 2 } },
+  'ENTRENAMIENTOTORTUGA': { packs: { redeem: 10, shop10: 10, shopE: 10 } },
+};
+
+/* ============ LOGROS ============ */
+/* Icono opcional por logro: imagenes/logros/<id>.png (si no existe, se usa el emoji de "icon") */
+const ACHIEVEMENTS = [
+  { id:'first_pack', icon:'📦', title:'Comienza el juego.', desc:'¡Abre tu primer sobre!',
+    condition: () => getStats().packsOpened >= 1, reward: { packs:{ daily:1 } } },
+  { id:'seven_packs', icon:'🐉', title:'Abre 7 Sobres.', desc:'¡Abre un total de 7 Sobres!',
+    condition: () => getStats().packsOpened >= 7, reward: { packs:{ daily:3 } }, progress: () => [getStats().packsOpened, 7] },
+  { id:'lots_packs', icon:'😮‍💨', title:'Tomate un descanso.', desc:'¡Abre un total de 777 Sobres!',
+    condition: () => getStats().packsOpened >= 777, reward: { packs:{ shopE:1 } }, progress: () => [getStats().packsOpened, 777] },
+  { id:'goku_bulma', icon:'🏜️', title:'La Fantástica Aventura.', desc:'Consigue a Goku (Niño) y Bulma (Niña).',
+    condition: () => ownsAllCharacters(['Goku (Niño)','Bulma (Niña)']), reward: { packs:{ daily:1 } } },
+  { id:'kame_school', icon:'🐢', title:'La Escuela Tortuga.', desc:'Consigue al Maestro Roshi, Goku (Niño) y Krilin.',
+    condition: () => ownsAllCharacters(['Roshi','Goku','Krilin']), reward: { packs:{ daily:1 } } },
+  { id:'first_dupe', icon:'🔁', title:'¡Primer dupe!', desc:'Canjeá tu primer carta repetida por puntos.',
+    condition: () => getStats().dupesConverted >= 1, reward: { packs:{ daily:1 } } },
+  { id:'baba_shop', icon:'🔮', title:'Uranai Baba, La Hermosa.', desc:'Canjeá puntos en la Tienda de Baba.',
+    condition: () => getStats().shopPurchases >= 1, reward: { packs:{ daily:1 } } },
+  { id:'skull_trio', icon:'💀', title:'El Trio Calavera', desc:'Consigue a Yamcha, Tenshinhan y Chaos.',
+    condition: () => ownsAllCharacters(['Yamcha','Tenshinhan','Chaos']), reward: { packs:{ daily:1 } } },
+  { id:'first_ur', icon:'⭐', title:'¡Ultra Raro!', desc:'Consigue tu primer UR.',
+    condition: () => hasRarityOwned('UR'), reward: { packs:{ daily:1 }, coins:150 } },
+  { id:'first_lr', icon:'🌟', title:'¡Legendario!', desc:'Consigue tu primer LR.',
+    condition: () => hasRarityOwned('LR'), reward: { packs:{ shop10:1 }, coins:300 } },
+
+  /* ======================================================================
+     LOGROS - SET 2 (agregá los tuyos con este mismo formato más abajo)
+     Campos: id (único, sin espacios), icon (emoji de respaldo),
+     title, desc, condition (función sin argumentos que devuelve true/false),
+     reward ({ packs:{tipo:cantidad}, coins:N }), progress (opcional, para
+     mostrar una barra "3/7": función que devuelve [actual, objetivo]).
+     Tipos de sobre válidos en reward.packs: daily, shop5, shop10, shopE, legendary.
+     Helpers disponibles para condition: ownsAllCharacters([...]) (tenés
+     TODOS los personajes listados), ownsCountOf([...]) (cuántos de una
+     lista tenés), ownsAllTagged('(Etiqueta)') (tenés TODAS las cartas cuyo
+     nombre incluye esa etiqueta, ej. '(Crossover)' o '(Película)'),
+     countTagged('(Etiqueta)') (para progress: devuelve [conseguidas, total]),
+     hasRarityOwned('UR'|'LR'|etc), getStats() (contadores: packsOpened,
+     dupesConverted, shopPurchases, ticketsUsed, exclusivePacksOpened),
+     countOwnedSlots(), CARDS.length, countOwnedAltSlots(), ALT_CARDS.length.
+     ====================================================================== */
+  { id:'budokai', icon:'🥋', title:'Torneo de las Artes Marciales', desc:'Consigue a Jackie Chun, Maestro Tsuru y Nam.',
+    condition: () => ownsAllCharacters(['Jackie Chun','Tsuru','Nam']), reward: { packs:{ daily:1 } } },
+  { id:'sand_land', icon:'🐫', title:'Reino Demonio', desc:'Consigue a Gola, Mera y Shula.',
+    condition: () => ownsAllCharacters(['Gola','Mera','Shula']), reward: { packs:{ daily:1 } } },
+  { id:'piccolo_court', icon:'👹', title:'El Rey Demonio Piccolo', desc:'Consigue al Gran Rey Demonio Piccolo, Tambourine, Cimbal y Drum.',
+    condition: () => ownsAllCharacters(['Arco del Gran Rey Demonio Piccolo','Tambourine','Cimbal','Drum']), reward: { packs:{ shop10:1 }, coins:100 } },
+  { id:'devils_castle', icon:'🧛', title:'El Castillo del Diablo', desc:'Consigue a Dracula Man, La Momia y Hombre Invisible.',
+    condition: () => ownsAllCharacters(['Dracula Man','Momia','Invisible']), reward: { packs:{ daily:2 } } },
+  { id:'rich_1000', icon:'💰', title:'Uranai Baba lo aprueba', desc:'Alcanzá las 1000 monedas rojas.',
+    condition: () => getCoins() >= 1000, reward: { packs:{ daily:1 } } },
+  { id:'foil_x3', icon:'✨', title:'Con estilo', desc:'Aplicá el efecto Foil a 3 figuritas distintas.',
+    condition: () => Object.values(collection).filter(e => e.foil).length >= 3, reward: { packs:{ daily:1 }, coins:100 },
+    progress: () => [Object.values(collection).filter(e => e.foil).length, 3] },
+  { id:'full_album', icon:'🏆', title:'Dokkan Completo', desc:'Completá el álbum entero: todas las figuritas.',
+    condition: () => countOwnedSlots() >= CARDS.length, reward: { packs:{ shopE:2 }, coins:500 },
+    progress: () => [countOwnedSlots(), CARDS.length] },
+  { id:'ticket_used', icon:'🎫', title:'Golpe de suerte', desc:'Usá tu primer Ticket de la Suerte.',
+    condition: () => getStats().ticketsUsed >= 1, reward: { packs:{ daily:1 } } },
+  { id:'golden_pack', icon:'🟡', title:'El Sobre Dorado', desc:'Abrí tu primer Sobre Exclusivo.',
+    condition: () => getStats().exclusivePacksOpened >= 1, reward: { packs:{ daily:1 } } },
+  { id:'double_ki', icon:'🌀', title:'Doble Ki', desc:'Conseguí dos artes distintas de la misma figurita.',
+    condition: () => Object.values(collection).some(e => e.owned.length >= 2), reward: { packs:{ daily:1 } } },
+  { id:'first_toploader', icon:'🗂️', title:'Protegida para siempre', desc:'Guardá tu primera figurita en un Top Loader.',
+    condition: () => getStats().cardsToploaded >= 1, reward: { packs:{ daily:1 } } },
+  { id:'perfect_grade', icon:'🏅', title:'Calidad Perfecta', desc:'Conseguí una figurita graduada calidad Z.',
+    condition: () => getStats().zGradesObtained >= 1, reward: { packs:{ shopE:1 }, coins:200 } },
+  { id:'crossover_complete', icon:'🌀', title:'Choque de Universos', desc:'Conseguí a todos los personajes Crossover.',
+    condition: () => ownsAllTagged('(Crossover)'), reward: { packs:{ shop10:1 }, coins:200 },
+    progress: () => countTagged('(Crossover)') },
+  { id:'movies_complete', icon:'🎬', title:'¡Héroe de las películas!', desc:'Conseguí a todos los personajes de Película.',
+    condition: () => ownsAllTagged('(Película)'), reward: { packs:{ shop10:1 }, coins:200 },
+    progress: () => countTagged('(Película)') },
+  { id:'all_alternates', icon:'🎨', title:'Coleccionista de Artes', desc:'Conseguí todas las figuritas con arte alternativo.',
+    condition: () => ALT_CARDS.length > 0 && countOwnedAltSlots() >= ALT_CARDS.length, reward: { packs:{ shopE:1 }, coins:300 },
+    progress: () => [countOwnedAltSlots(), ALT_CARDS.length] },
+  { id:'signed_akira', icon:'✒️', title:'Firmado por Akira Toriyama', desc:'Consigue la firma del maestro Akira Toriyama.',
+    condition: () => hasAnySignedCard(), reward: { toploaders:1, expositors:1 } },
+];
+
+function getStats(){
+  const defaults = {
+    packsOpened:0, dupesConverted:0, shopPurchases:0, ticketsUsed:0, exclusivePacksOpened:0,
+    cardsToploaded:0, cardsGraded:0, zGradesObtained:0, toploadersBought:0, expositorsBought:0,
+    foilApplied:0, signedFound:0
+    /* además existen claves dinámicas no listadas acá: packsOpened_<kind> (una por cada tipo de
+       sobre en PACK_TYPES) y pulled_<rareza> (una por cada rareza en RARITY_WEIGHT) */
+  };
+  try{ return Object.assign(defaults, JSON.parse(localStorage.getItem(LS_STATS) || '{}')); }
+  catch(e){ return defaults; }
+}
+function setStats(s){ localStorage.setItem(LS_STATS, JSON.stringify(s)); }
+function bumpStat(key, amount){
+  const s = getStats();
+  s[key] = (s[key] || 0) + (amount || 1);
+  setStats(s);
+}
+function getUnlockedAchievements(){ try{ return JSON.parse(localStorage.getItem(LS_ACHIEVEMENTS) || '[]'); }catch(e){ return []; } }
+function setUnlockedAchievements(arr){ localStorage.setItem(LS_ACHIEVEMENTS, JSON.stringify(arr)); }
+function hasRarityOwned(rareza){
+  return Object.values(collection).some(e => e.owned.some(o => o.rareza === rareza));
+}
+function normalizeName(s){
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+function ownsAllCharacters(fragments){
+  return fragments.every(frag => CARDS.some(c => collection[c.id] && normalizeName(c.nombre).includes(normalizeName(frag))));
+}
+function ownsCountOf(fragments){
+  return fragments.filter(frag => CARDS.some(c => collection[c.id] && normalizeName(c.nombre).includes(normalizeName(frag)))).length;
+}
+/* Para logros de "conseguí todo el grupo X" donde el grupo se identifica por una etiqueta
+   en el nombre de la carta (ej. "(Crossover)", "(Película)"), en vez de una lista fija de
+   personajes. cardsTagged() siempre relee CARDS, así que escala solo con las cartas que haya. */
+function cardsTagged(tag){
+  return CARDS.filter(c => c.nombre.includes(tag));
+}
+function countTagged(tag){
+  const list = cardsTagged(tag);
+  return [list.filter(c => collection[c.id]).length, list.length];
+}
+function ownsAllTagged(tag){
+  const list = cardsTagged(tag);
+  return list.length > 0 && list.every(c => collection[c.id]);
+}
+function grantAchievementReward(ach){
+  if(ach.reward.packs){ for(const k in ach.reward.packs){ addToInventory(k, ach.reward.packs[k]); } }
+  if(ach.reward.coins){ addCoins(ach.reward.coins); }
+  if(ach.reward.toploaders){ setEmptyToploaders(getEmptyToploaders() + ach.reward.toploaders); }
+  if(ach.reward.expositors){ setEmptyExpositors(getEmptyExpositors() + ach.reward.expositors); }
+}
+let achievementQueue = [];
+function checkAchievements(){
+  const unlocked = getUnlockedAchievements();
+  let changed = false;
+  for(const ach of ACHIEVEMENTS){
+    if(unlocked.includes(ach.id)) continue;
+    if(ach.condition()){
+      unlocked.push(ach.id);
+      changed = true;
+      grantAchievementReward(ach);
+      achievementQueue.push(ach);
+    }
+  }
+  if(changed){
+    setUnlockedAchievements(unlocked);
+    renderPackStack(); refreshPackUI();
+    if(document.getElementById('view-logros').classList.contains('active')) renderAchievements();
+    processAchievementQueue();
+  }
+}
+function processAchievementQueue(){
+  if(achievementQueue.length === 0) return;
+  const toast = document.getElementById('achToast');
+  if(toast.classList.contains('show')) return; // ya mostrando una, espera a que termine
+  const ach = achievementQueue.shift();
+  const iconEl = document.getElementById('achToastIcon');
+  iconEl.innerHTML = '';
+  const img = document.createElement('img');
+  img.src = 'imagenes/logros/' + ach.id + '.png';
+  img.onerror = function(){ iconEl.textContent = ach.icon; };
+  img.onload = function(){ iconEl.innerHTML=''; iconEl.appendChild(img); };
+  iconEl.textContent = ach.icon;
+  document.getElementById('achToastTitle').textContent = ach.title;
+  playAchievementSound();
+  toast.classList.add('show');
+  setTimeout(()=>{
+    toast.classList.remove('show');
+    setTimeout(processAchievementQueue, 400);
+  }, 4200);
+}
+function renderAchievements(){
+  const unlocked = getUnlockedAchievements();
+  const grid = document.getElementById('achGrid');
+  grid.innerHTML = '';
+  for(const ach of ACHIEVEMENTS){
+    const isUnlocked = unlocked.includes(ach.id);
+    const card = document.createElement('div');
+    card.className = 'ach-card' + (isUnlocked ? ' unlocked' : '');
+    const icon = document.createElement('div');
+    icon.className = 'ach-icon';
+    icon.textContent = ach.icon; /* placeholder mientras se intenta cargar el PNG (o si no existe) */
+    const img = document.createElement('img');
+    img.src = 'imagenes/logros/' + ach.id + '.png';
+    /* Importante: el <img> NO se agrega al ícono hasta que termine de cargar bien. Antes se
+       agregaba de entrada y, al cargar, se hacía icon.textContent='' para sacar el emoji — pero
+       asignar textContent borra TODOS los hijos, incluida la imagen recién agregada, y el ícono
+       quedaba vacío. Por eso no se veían los PNG aunque existieran. */
+    img.onload = function(){ icon.textContent = ''; icon.appendChild(img); };
+    img.onerror = function(){ /* no existe el PNG de este logro: se queda el emoji ya puesto */ };
+    card.appendChild(icon);
+    const text = document.createElement('div');
+    text.className = 'ach-text';
+    text.innerHTML = '<h4>' + ach.title + '</h4><p>' + ach.desc + '</p>';
+    if(isUnlocked){
+      const rewardBits = [];
+      if(ach.reward.packs){ for(const k in ach.reward.packs){ rewardBits.push((PACK_TYPES[k]||{}).label + ' x' + ach.reward.packs[k]); } }
+      if(ach.reward.coins){ rewardBits.push(ach.reward.coins + ' monedas rojas'); }
+      if(ach.reward.toploaders){ rewardBits.push('Top Loader x' + ach.reward.toploaders); }
+      if(ach.reward.expositors){ rewardBits.push('Expositor x' + ach.reward.expositors); }
+      const r = document.createElement('div'); r.className='ach-reward'; r.textContent = 'Recompensa: ' + rewardBits.join(' + ');
+      text.appendChild(r);
+    } else if(ach.progress){
+      const [cur, total] = ach.progress();
+      const p = document.createElement('div'); p.className='ach-progress'; p.textContent = Math.min(cur,total) + ' / ' + total;
+      text.appendChild(p);
+    }
+    card.appendChild(text);
+    grid.appendChild(card);
+  }
+  const unlockedCount = unlocked.length;
+  document.getElementById('achProgressLabel').textContent = unlockedCount + ' / ' + ACHIEVEMENTS.length + ' logros conseguidos';
+}
+
+/* Arte de cartas alojado en nuestro propio servidor, en vez de traerlo directo de dokkaninfo.com:
+   evita el bloqueo por Referer al servir por http/localhost, y no dependemos de que su servidor
+   siga respondiendo. Cada carta usa el mismo nombre de archivo que ya tenía en la URL original
+   (ej ".../1015180/1015180.png" -> "assets/cards/1015180.png"), solo cambia el prefijo.
+   Para poblar assets/cards/ una sola vez, correr download_card_art.py (ver junto a este archivo). */
+function cardImgSrc(url){
+  if(!url) return url;
+  const m = url.match(/\/([^\/?#]+\.png)(?:[?#].*)?$/i);
+  return m ? 'assets/cards/' + m[1] : url;
+}
+function tlHelperImg(cardId, rareza, alternativa){
+  const card = CARDS.find(c => c.id === cardId);
+  const v = card ? findVariant(card, rareza, alternativa) : null;
+  return v ? cardImgSrc(v.img) : '';
+}
+function buildSlabEl(g){
+  const slab = document.createElement('div'); slab.className = 'card-slab slab-clickable' + (g.signed ? ' signed-card' : '');
+  slab.addEventListener('click', () => openGradedDetail(g));
+  const label = document.createElement('div'); label.className = 'slab-label';
+  label.innerHTML = 'GRADO <span class="slab-grade grade-' + g.grade + '">' + g.grade + '</span>';
+  slab.appendChild(label);
+  const win = document.createElement('div'); win.className = 'slab-window';
+  if(g.foil) win.classList.add('foil-effect');
+  const img = document.createElement('img');
+  img.src = tlHelperImg(g.cardId, g.rareza, g.alternativa);
+  img.onerror = () => { img.style.display='none'; win.style.background = rarityFallbackBg(g.rareza); };
+  win.appendChild(img);
+  if(g.signed) win.appendChild(buildSignatureImg());
+  slab.appendChild(win);
+  return slab;
+}
+function buildSignedDupeCardEl(item){
+  const wrap = document.createElement('div'); wrap.className = 'signed-dupe-card signed-card';
+  const img = document.createElement('img');
+  img.src = tlHelperImg(item.cardId, item.rareza, item.alternativa);
+  img.onerror = () => { img.style.display = 'none'; wrap.style.background = rarityFallbackBg(item.rareza); };
+  wrap.appendChild(img);
+  wrap.appendChild(buildSignatureImg());
+  return wrap;
+}
+function renderSignedDupes(){
+  document.getElementById('signedDupeMaxLabel').textContent = SIGNED_DUPE_MAX_SLOTS;
+  const list = getSignedDupes();
+  document.getElementById('signedDupeCountLine').textContent = 'Firmadas guardadas: ' + list.length + ' / ' + SIGNED_DUPE_MAX_SLOTS;
+  const grid = document.getElementById('signedDupeGrid');
+  grid.innerHTML = '';
+  if(list.length === 0){
+    const note = document.createElement('div'); note.className='tl-empty-note';
+    note.textContent = 'Todavía no te tocó ninguna figurita firmada repetida.';
+    grid.appendChild(note);
+  }
+  for(const item of list){
+    const card = document.createElement('div'); card.className = 'tl-card';
+    card.appendChild(buildSignedDupeCardEl(item));
+    const label = document.createElement('div'); label.style.fontSize='11px'; label.style.color='#c9bfe0';
+    label.textContent = '#' + item.cardId;
+    card.appendChild(label);
+    const actions = document.createElement('div'); actions.className = 'tl-actions';
+    const pasteBtn = document.createElement('button'); pasteBtn.className='btn small'; pasteBtn.textContent='Pegar en álbum';
+    pasteBtn.addEventListener('click', () => upgradeAlbumWithSignedDupe(item.uid));
+    actions.appendChild(pasteBtn);
+    const tlBtn = document.createElement('button'); tlBtn.className='btn small secondary'; tlBtn.textContent='Top Loader';
+    if(getEmptyToploaders() <= 0) tlBtn.disabled = true;
+    tlBtn.addEventListener('click', () => moveSignedDupeToTopLoader(item.uid));
+    actions.appendChild(tlBtn);
+    const sellBtn = document.createElement('button'); sellBtn.className='btn small secondary'; sellBtn.textContent='Vender ya';
+    sellBtn.addEventListener('click', () => sellSignedDupe(item.uid));
+    actions.appendChild(sellBtn);
+    card.appendChild(actions);
+    grid.appendChild(card);
+  }
+}
+/* Sube la firmada repetida al álbum: si la copia original de esa variante sigue en el álbum, la
+   "actualiza" a firmada (son la misma figurita, ahora con firma). Si esa copia ya no está ahí
+   (por ejemplo, se guardó en un Top Loader mientras tanto), la agrega como si fuera nueva. */
+function upgradeAlbumWithSignedDupe(uid){
+  const list = getSignedDupes();
+  const idx = list.findIndex(x => x.uid === uid);
+  if(idx < 0) return;
+  const item = list[idx];
+  list.splice(idx, 1); setSignedDupes(list);
+  let entry = collection[item.cardId];
+  if(!entry){ entry = { owned: [], selected: null, foil:false, pasted:false }; collection[item.cardId] = entry; }
+  const existing = entry.owned.find(o => o.rareza === item.rareza && o.alternativa === item.alternativa);
+  if(existing){ existing.signed = true; }
+  else { entry.owned.push({ rareza: item.rareza, alternativa: item.alternativa, signed: true }); }
+  entry.selected = { rareza: item.rareza, alternativa: item.alternativa };
+  entry.pasted = false;
+  saveCollection(collection);
+  renderGrid();
+  renderSignedDupes();
+  checkAchievements();
+}
+/* Manda la firmada repetida directo a un Top Loader, sin pasar por el álbum (es una copia de más
+   de una figurita que ya tenías, así que no hace falta pegarla primero). */
+function moveSignedDupeToTopLoader(uid){
+  if(getEmptyToploaders() <= 0) return;
+  const list = getSignedDupes();
+  const idx = list.findIndex(x => x.uid === uid);
+  if(idx < 0) return;
+  const item = list[idx];
+  list.splice(idx, 1); setSignedDupes(list);
+  setEmptyToploaders(getEmptyToploaders() - 1);
+  const tl = { uid: genUid(), cardId: item.cardId, rareza: item.rareza, alternativa: item.alternativa, foil:false, signed:true };
+  const tlist = getToploadedCards(); tlist.push(tl); setToploadedCards(tlist);
+  bumpStat('cardsToploaded', 1);
+  renderToploaders();
+  renderSignedDupes();
+  checkAchievements();
+  openToploaderOverlay('insert', tl);
+}
+function sellSignedDupe(uid){
+  const list = getSignedDupes();
+  const idx = list.findIndex(x => x.uid === uid);
+  if(idx < 0) return;
+  if(!confirm('¿Vender esta figurita firmada repetida por ' + SIGNED_COIN_VALUE + ' monedas rojas? No se puede deshacer.')) return;
+  list.splice(idx, 1); setSignedDupes(list);
+  addCoins(SIGNED_COIN_VALUE);
+  renderSignedDupes();
+}
+/* ============ STOCK DE CONSUMIBLES (página Inventario) ============
+   Una tarjeta por consumible, con el MISMO ícono que tiene en la tienda (se copia del propio ítem
+   de la tienda, así si algún día cambia el ícono acá cambia solo) y la cantidad en una burbuja
+   dorada, igual que la pila de sobres del álbum. Los sobres aparecen por tipo, solo los que hay. */
+function shopIconHtml(buyButtonId){
+  const btn = document.getElementById(buyButtonId);
+  const item = btn && btn.closest('.shop-item');
+  const icon = item && item.querySelector('.icon-wrap');
+  return icon ? icon.innerHTML : '';
+}
+function packIconHtml(kind){
+  return '<img src="' + PACK_TYPES[kind].art + '" alt="" onerror="this.style.display=\'none\'">';
+}
+function buildStockItem(iconHtml, count, label, extraClass){
+  const el = document.createElement('div');
+  el.className = 'stock-item' + (extraClass ? ' ' + extraClass : '') + (count > 0 ? '' : ' stock-zero');
+  el.innerHTML = '<div class="stock-icon">' + iconHtml + '</div><div class="stock-badge">' + count + '</div><div class="stock-label">' + label + '</div>';
+  return el;
+}
+function renderInventoryStock(){
+  const grid = document.getElementById('stockGrid');
+  grid.innerHTML = '';
+  const packCounts = {};
+  getInventory().forEach(kind => { packCounts[kind] = (packCounts[kind] || 0) + 1; });
+  const kindsInStock = Object.keys(PACK_TYPES).filter(kind => packCounts[kind]);
+  kindsInStock.forEach(kind => grid.appendChild(buildStockItem(packIconHtml(kind), packCounts[kind], PACK_TYPES[kind].label)));
+  if(kindsInStock.length === 0) grid.appendChild(buildStockItem(packIconHtml('shop5'), 0, 'Sobres'));
+  grid.appendChild(buildStockItem(shopIconHtml('buyTicketBtn'), getLuckyTickets(), 'Tickets de la suerte', 'stock-ticket'));
+  grid.appendChild(buildStockItem(shopIconHtml('buyToploaderBtn'), getEmptyToploaders(), 'Top Loaders vacíos'));
+  grid.appendChild(buildStockItem(shopIconHtml('buyExpositorBtn'), getEmptyExpositors(), 'Expositores vacíos'));
+}
+function refreshStockIfVisible(){
+  if(document.getElementById('view-inventario').classList.contains('active')) renderInventoryStock();
+}
+
+function renderToploaders(){
+  const list = getToploadedCards();
+  const grid = document.getElementById('topLoaderGrid');
+  grid.innerHTML = '';
+  if(list.length === 0){
+    const note = document.createElement('div'); note.className='tl-empty-note';
+    note.textContent = 'Todavía no guardaste ninguna figurita en un Top Loader.';
+    grid.appendChild(note);
+  }
+  for(const tl of list){
+    const card = document.createElement('div'); card.className = 'tl-card';
+    const parts = buildToploaderSleeve(tl, { badge:true });
+    parts.sleeve.title = 'Tocá para inspeccionarla';
+    parts.sleeve.addEventListener('click', () => openToploaderOverlay('view', tl));
+    card.appendChild(parts.sleeve);
+    const label = document.createElement('div'); label.style.fontSize='11px'; label.style.color='#c9bfe0';
+    label.textContent = '#' + tl.cardId;
+    card.appendChild(label);
+    const actions = document.createElement('div'); actions.className = 'tl-actions';
+    const pasteBtn = document.createElement('button'); pasteBtn.className='btn small'; pasteBtn.textContent='Pegar en álbum';
+    pasteBtn.addEventListener('click', () => pasteBackFromToploader(tl.uid));
+    actions.appendChild(pasteBtn);
+    const gradeBtn = document.createElement('button'); gradeBtn.className='btn small secondary'; gradeBtn.textContent='Graduar';
+    if(getEmptyExpositors() <= 0) gradeBtn.disabled = true;
+    gradeBtn.addEventListener('click', () => gradeToploadedCard(tl.uid));
+    actions.appendChild(gradeBtn);
+    card.appendChild(actions);
+    grid.appendChild(card);
+  }
+}
+function renderGraded(){
+  document.getElementById('expoMaxLabel').textContent = MAX_EXPOSITOR_DISPLAY;
+  const list = getGradedCards();
+  const showcase = document.getElementById('expositorShowcase');
+  showcase.innerHTML = '';
+  const displayed = list.filter(g => g.displayed);
+  for(let i = 0; i < MAX_EXPOSITOR_DISPLAY; i++){
+    const g = displayed[i];
+    const slot = document.createElement('div'); slot.className = 'expo-slot' + (g ? ' filled' : '');
+    if(g){
+      slot.appendChild(buildSlabEl(g));
+    } else {
+      const num = document.createElement('div'); num.className='num'; num.textContent = i+1;
+      slot.appendChild(num);
+    }
+    showcase.appendChild(slot);
+  }
+  const grid = document.getElementById('gradedGrid');
+  grid.innerHTML = '';
+  if(list.length === 0){
+    const note = document.createElement('div'); note.className='tl-empty-note';
+    note.textContent = 'Todavía no graduaste ninguna figurita.';
+    grid.appendChild(note);
+  }
+  for(const g of list){
+    const card = document.createElement('div'); card.className = 'tl-card';
+    const wrap = document.createElement('div'); wrap.className = 'tl-img-wrap'; wrap.style.padding='0';
+    wrap.appendChild(buildSlabEl(g));
+    card.appendChild(wrap);
+    const label = document.createElement('div'); label.style.fontSize='11px'; label.style.color='#c9bfe0';
+    label.textContent = '#' + g.cardId + (g.signed ? ' ✒️' : '') + ' · vale ' + gradedSellValue(g.rareza, g.grade, g.signed);
+    card.appendChild(label);
+    const actions = document.createElement('div'); actions.className = 'tl-actions';
+    const dispBtn = document.createElement('button'); dispBtn.className='btn small' + (g.displayed ? '' : ' secondary'); dispBtn.textContent = g.displayed ? 'Quitar del expositor' : 'Mostrar';
+    dispBtn.addEventListener('click', () => toggleExpositorDisplay(g.uid));
+    actions.appendChild(dispBtn);
+    const sellBtn = document.createElement('button'); sellBtn.className='btn small secondary'; sellBtn.textContent='Vender';
+    sellBtn.addEventListener('click', () => sellGradedCard(g.uid));
+    actions.appendChild(sellBtn);
+    card.appendChild(actions);
+    grid.appendChild(card);
+  }
+}
+function showGradeReveal(graded){
+  const img = document.getElementById('gradeRevealImg');
+  img.src = tlHelperImg(graded.cardId, graded.rareza, graded.alternativa);
+  img.style.display = '';
+  img.onerror = () => { img.style.display='none'; };
+  // reinicia la animación de deslizamiento por si se gradúa más de una vez seguida
+  img.classList.remove('grade-reveal-slide');
+  void img.offsetWidth;
+  img.classList.add('grade-reveal-slide');
+
+  const slab = document.getElementById('gradeRevealSlab');
+  applySignatureOverlay(slab.querySelector('.slab-big-window'), !!graded.signed);
+  const gradeLetterEl = document.getElementById('gradeRevealGradeLetter');
+  gradeLetterEl.textContent = '?';
+  gradeLetterEl.className = 'slab-grade';
+  document.getElementById('gradeRevealCardNum').textContent = '#' + graded.cardId;
+  document.getElementById('gradeRevealFooter').textContent = 'Sellando…';
+  document.getElementById('gradeRevealTitle').textContent = 'Metiendo la figurita en el case…';
+  document.getElementById('gradeRevealOk').style.display = 'none';
+  slab.classList.remove('sealing');
+  document.getElementById('gradeRevealOverlay').classList.add('show');
+  playGradeSound();
+
+  // Deja ver la carta deslizándose adentro un momento, "sella" el case con un flash,
+  // y recién ahí revela la calidad — antes de esto no se sabe qué grado tocó.
+  setTimeout(() => {
+    void slab.offsetWidth;
+    slab.classList.add('sealing');
+    gradeLetterEl.textContent = graded.grade;
+    gradeLetterEl.className = 'slab-grade grade-' + graded.grade + ' grade-reveal-pop';
+    document.getElementById('gradeRevealFooter').textContent = '¡Calidad certificada!';
+    document.getElementById('gradeRevealTitle').textContent = '¡Calidad revelada!';
+    document.getElementById('gradeRevealOk').style.display = '';
+  }, 750);
+}
+
+/* ============ PERFIL: nick / bio / foto editables ============ */
+function loadProfileHeader(){
+  const nick = localStorage.getItem(LS_PROFILE_NICK) || '';
+  const bio = localStorage.getItem(LS_PROFILE_BIO) || '';
+  const avatar = localStorage.getItem(LS_PROFILE_AVATAR) || '';
+  document.getElementById('profileNick').value = nick;
+  document.getElementById('profileBio').value = bio;
+  const img = document.getElementById('profileAvatarImg');
+  const emoji = document.getElementById('profileAvatarEmoji');
+  if(avatar){ img.src = avatar; img.style.display=''; emoji.style.display='none'; }
+  else { img.style.display='none'; emoji.style.display=''; }
+}
+/* Arma una tarjeta de estadística chiquita: ícono o insignia de rareza, número grande y etiqueta. */
+function buildStatCard(valueHtml, label, iconHtml){
+  const card = document.createElement('div');
+  card.className = 'stat-card';
+  card.innerHTML = (iconHtml ? '<div class="stat-icon">' + iconHtml + '</div>' : '') +
+    '<div class="stat-value">' + valueHtml + '</div>' +
+    (label ? '<div class="stat-label">' + label + '</div>' : '');
+  return card;
+}
+/* Estadísticas del perfil: mezcla contadores acumulados de toda la partida (getStats()) con
+   datos en vivo de la colección actual (cuántas casillas y variantes están ocupadas ahora). */
+function renderProfileStats(){
+  const stats = getStats();
+  const rarezas = Object.keys(RARITY_WEIGHT);
+  const totalPulled = rarezas.reduce((sum, r) => sum + (stats['pulled_' + r] || 0), 0);
+  let normalCount = 0, altCount = 0;
+  for(const id in collection){
+    collection[id].owned.forEach(o => { if(o.alternativa) altCount++; else normalCount++; });
+  }
+  const unlockedAch = getUnlockedAchievements().length;
+
+  const mainGrid = document.getElementById('statsGridMain');
+  mainGrid.innerHTML = '';
+  [
+    ['📦', stats.packsOpened, 'Sobres abiertos'],
+    ['🃏', totalPulled, 'Figuritas obtenidas'],
+    ['♻️', stats.dupesConverted, 'Repetidas convertidas'],
+    ['🖼️', normalCount, 'Álbum: arte normal'],
+    ['🎨', altCount, 'Álbum: arte alternativo'],
+    ['📖', countOwnedSlots() + '/' + CARDS.length, 'Casillas completas'],
+    ['🗂️', stats.toploadersBought, 'Top Loaders comprados'],
+    ['🏆', stats.expositorsBought, 'Expositores comprados'],
+    ['🎖️', stats.cardsGraded, 'Cartas graduadas'],
+    ['💎', stats.zGradesObtained, 'Calidad Z conseguida'],
+    ['🎫', stats.ticketsUsed, 'Tickets usados'],
+    ['✨', stats.foilApplied, 'Efectos Foil aplicados'],
+    ['✒️', stats.signedFound, 'Firmas de Akira encontradas'],
+    ['🏅', unlockedAch + '/' + ACHIEVEMENTS.length, 'Logros conseguidos'],
+  ].forEach(([icon, value, label]) => mainGrid.appendChild(buildStatCard(value, label, icon)));
+
+  const packsGrid = document.getElementById('statsGridPacks');
+  packsGrid.innerHTML = '';
+  Object.keys(PACK_TYPES).forEach(kind => {
+    packsGrid.appendChild(buildStatCard(stats['packsOpened_' + kind] || 0, PACK_TYPES[kind].label));
+  });
+
+  const rarityGrid = document.getElementById('statsGridRarity');
+  rarityGrid.innerHTML = '';
+  rarezas.forEach(r => {
+    rarityGrid.appendChild(buildStatCard(stats['pulled_' + r] || 0, null, rarityBadgeSVG(r)));
+  });
+}
+document.getElementById('profileNick').addEventListener('input', (e) => {
+  localStorage.setItem(LS_PROFILE_NICK, e.target.value);
+});
+document.getElementById('profileBio').addEventListener('input', (e) => {
+  localStorage.setItem(LS_PROFILE_BIO, e.target.value);
+});
+document.getElementById('profileAvatar').addEventListener('click', () => {
+  document.getElementById('profileAvatarFile').click();
+});
+document.getElementById('profileAvatarFile').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    localStorage.setItem(LS_PROFILE_AVATAR, reader.result);
+    loadProfileHeader();
+  };
+  reader.readAsDataURL(file);
+});
+document.getElementById('gradeRevealOk').addEventListener('click', () => document.getElementById('gradeRevealOverlay').classList.remove('show'));
+document.getElementById('gradeRevealClose').addEventListener('click', () => document.getElementById('gradeRevealOverlay').classList.remove('show'));
+
+/* ============ ICONOS ============ */
+function coinIconSVG(){
+  return `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <defs><radialGradient id="coinGrad" cx="35%" cy="30%" r="75%">
+      <stop offset="0%" stop-color="#ff9d6b"/><stop offset="55%" stop-color="#e2402f"/><stop offset="100%" stop-color="#a4201a"/>
+    </radialGradient></defs>
+    <circle cx="50" cy="50" r="45" fill="url(#coinGrad)" stroke="#7a1510" stroke-width="4"/>
+    <circle cx="50" cy="50" r="33" fill="none" stroke="#ffd7b0" stroke-width="2.5" opacity="0.7"/>
+    <path d="M50 26 L57 44 L76 44 L60 56 L66 74 L50 63 L34 74 L40 56 L24 44 L43 44 Z" fill="#ffe7d1"/>
+  </svg>`;
+}
+/* Nota: ícono placeholder de moneda roja (no llegó el PNG adjunto). Reemplazar fácil: buscar
+   la línea de arriba y cambiarla por <img src="data:image/png;base64,...">  */
+let badgeIdCounter = 0;
+function rarityBadgeSVG(rareza){
+  badgeIdCounter++;
+  if(rareza === 'LR'){
+    const gid = 'lrg' + badgeIdCounter;
+    return `<svg class="rarity-badge" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#ff6a1a"/><stop offset="35%" stop-color="#ff3d7f"/>
+        <stop offset="70%" stop-color="#8659c9"/><stop offset="100%" stop-color="#e3b23c"/>
+      </linearGradient></defs>
+      <polygon points="50,3 97,50 50,97 3,50" fill="url(#${gid})" stroke="#fff" stroke-width="4"/>
+      <text x="50" y="63" font-family="Nunito, sans-serif" font-weight="800" font-size="34" fill="#fff" text-anchor="middle">LR</text>
+    </svg>`;
+  }
+  const color = RARITY_COLORS[rareza] || '#999';
+  return `<svg class="rarity-badge" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <polygon points="50,3 97,50 50,97 3,50" fill="${color}" stroke="#fff" stroke-width="4"/>
+    <text x="50" y="63" font-family="Nunito, sans-serif" font-weight="800" font-size="${rareza.length>2?26:34}" fill="#fff" text-anchor="middle">${rareza}</text>
+  </svg>`;
+}
+
+/* ============ STATE ============ */
+function loadCollection(){ try{ const raw = localStorage.getItem(LS_COLLECTION); return raw ? JSON.parse(raw) : {}; }catch(e){ return {}; } }
+function saveCollection(col){ localStorage.setItem(LS_COLLECTION, JSON.stringify(col)); }
+function getLastOpen(){ const v = localStorage.getItem(LS_LAST_OPEN); return v ? parseInt(v,10) : 0; }
+function setLastOpen(ts){ localStorage.setItem(LS_LAST_OPEN, String(ts)); }
+function getInventory(){ try{ return JSON.parse(localStorage.getItem(LS_INVENTORY) || '[]'); }catch(e){ return []; } }
+function setInventory(arr){ localStorage.setItem(LS_INVENTORY, JSON.stringify(arr)); refreshStockIfVisible(); }
+function addToInventory(kind, qty){
+  qty = qty || 1;
+  const inv = getInventory();
+  for(let i=0;i<qty;i++) inv.push(kind);
+  setInventory(inv);
+}
+function getRedeemed(){ try{ return JSON.parse(localStorage.getItem(LS_REDEEMED) || '[]'); }catch(e){ return []; } }
+function setRedeemed(list){ localStorage.setItem(LS_REDEEMED, JSON.stringify(list)); }
+function getTestMode(){ return localStorage.getItem(LS_TESTMODE) === '1'; }
+function setTestMode(v){ localStorage.setItem(LS_TESTMODE, v ? '1' : '0'); }
+function getCoins(){ return parseInt(localStorage.getItem(LS_COINS) || '0', 10); }
+function setCoins(n){ localStorage.setItem(LS_COINS, String(Math.max(0,n))); updateCoinUI(); }
+function addCoins(n){ setCoins(getCoins() + n); }
+function getLuckyTickets(){ return parseInt(localStorage.getItem(LS_LUCKY_TICKETS) || '0', 10); }
+function setLuckyTickets(n){ localStorage.setItem(LS_LUCKY_TICKETS, String(Math.max(0,n))); refreshStockIfVisible(); }
+
+/* ============ TOP LOADERS / EXPOSITOR ============ */
+function getEmptyToploaders(){ return parseInt(localStorage.getItem(LS_TOPLOADERS_EMPTY) || '0', 10); }
+function setEmptyToploaders(n){ localStorage.setItem(LS_TOPLOADERS_EMPTY, String(Math.max(0,n))); refreshStockIfVisible(); }
+function getEmptyExpositors(){ return parseInt(localStorage.getItem(LS_EXPOSITORS_EMPTY) || '0', 10); }
+function setEmptyExpositors(n){ localStorage.setItem(LS_EXPOSITORS_EMPTY, String(Math.max(0,n))); refreshStockIfVisible(); }
+function getToploadedCards(){ try{ return JSON.parse(localStorage.getItem(LS_TOPLOADED_CARDS) || '[]'); }catch(e){ return []; } }
+function setToploadedCards(arr){ localStorage.setItem(LS_TOPLOADED_CARDS, JSON.stringify(arr)); }
+function getGradedCards(){ try{ return JSON.parse(localStorage.getItem(LS_GRADED_CARDS) || '[]'); }catch(e){ return []; } }
+function setGradedCards(arr){ localStorage.setItem(LS_GRADED_CARDS, JSON.stringify(arr)); }
+function genUid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+
+function weightedGrade(){
+  const entries = Object.entries(GRADE_WEIGHTS);
+  const total = entries.reduce((s,[,w])=>s+w,0);
+  let r = Math.random() * total;
+  for(const [g,w] of entries){ r -= w; if(r <= 0) return g; }
+  return entries[entries.length-1][0];
+}
+function gradedSellValue(rareza, grade, signed){
+  const base = signed ? SIGNED_EXPOSITOR_BASE_VALUE : (EXPOSITOR_BASE_VALUE[rareza] || 20);
+  return Math.max(CRAFT_COST, Math.round(base * GRADE_MULTIPLIER[grade]));
+}
+
+/* Sacar del álbum una figurita ya pegada y guardarla en un Top Loader vacío */
+function moveToTopLoader(cardId){
+  const entry = collection[cardId];
+  if(!entry || !entry.pasted) return false;
+  if(getEmptyToploaders() <= 0) return false;
+  const sel = entry.selected;
+  const ownedVariant = entry.owned.find(o => o.rareza===sel.rareza && o.alternativa===sel.alternativa);
+  const tl = { uid: genUid(), cardId, rareza: sel.rareza, alternativa: sel.alternativa, foil: !!entry.foil, signed: !!(ownedVariant && ownedVariant.signed) };
+  entry.owned = entry.owned.filter(o => !(o.rareza === sel.rareza && o.alternativa === sel.alternativa));
+  entry.foil = false;
+  if(entry.owned.length === 0){
+    delete collection[cardId];
+  } else {
+    entry.selected = entry.owned[0];
+    entry.pasted = false;
+  }
+  saveCollection(collection);
+  setEmptyToploaders(getEmptyToploaders() - 1);
+  const list = getToploadedCards(); list.push(tl); setToploadedCards(list);
+  bumpStat('cardsToploaded', 1);
+  renderGrid();
+  checkAchievements();
+  return tl;   // truthy: el que llama lo usa para mostrar la animación de "entra a la funda"
+}
+/* Sacar una figurita de su Top Loader y volver a pegarla (queda pendiente de pegado) en el álbum */
+function pasteBackFromToploader(uid){
+  const list = getToploadedCards();
+  const idx = list.findIndex(x => x.uid === uid);
+  if(idx < 0) return;
+  const tl = list[idx];
+  list.splice(idx, 1); setToploadedCards(list);
+  setEmptyToploaders(getEmptyToploaders() + 1);
+  let entry = collection[tl.cardId];
+  if(!entry){ entry = { owned: [], selected: null, foil:false, pasted:false }; collection[tl.cardId] = entry; }
+  const already = entry.owned.some(o => o.rareza === tl.rareza && o.alternativa === tl.alternativa);
+  if(!already) entry.owned.push({ rareza: tl.rareza, alternativa: tl.alternativa, signed: !!tl.signed });
+  entry.selected = { rareza: tl.rareza, alternativa: tl.alternativa };
+  if(tl.foil) entry.foil = true;
+  entry.pasted = false;
+  saveCollection(collection);
+  renderGrid();
+  renderToploaders();
+  openToploaderOverlay('remove', tl);
+}
+/* Graduar una figurita del Top Loader: sale con una calidad al azar y pasa a ser una carta permanente del expositor */
+function gradeToploadedCard(uid){
+  if(getEmptyExpositors() <= 0) return;
+  const list = getToploadedCards();
+  const idx = list.findIndex(x => x.uid === uid);
+  if(idx < 0) return;
+  const tl = list[idx];
+  list.splice(idx, 1); setToploadedCards(list);
+  setEmptyExpositors(getEmptyExpositors() - 1);
+  const grade = weightedGrade();
+  const graded = { uid: tl.uid, cardId: tl.cardId, rareza: tl.rareza, alternativa: tl.alternativa, foil: tl.foil, signed: !!tl.signed, grade, displayed:false };
+  const glist = getGradedCards(); glist.push(graded); setGradedCards(glist);
+  bumpStat('cardsGraded', 1);
+  if(grade === 'Z') bumpStat('zGradesObtained', 1);
+  renderToploaders();
+  renderGraded();
+  checkAchievements();
+  showGradeReveal(graded);
+}
+function toggleExpositorDisplay(uid){
+  const list = getGradedCards();
+  const g = list.find(x => x.uid === uid);
+  if(!g) return;
+  if(!g.displayed){
+    const shown = list.filter(x => x.displayed).length;
+    if(shown >= MAX_EXPOSITOR_DISPLAY){ alert('Tu expositor ya tiene el máximo de ' + MAX_EXPOSITOR_DISPLAY + ' figuritas mostradas. Sacá una para agregar otra.'); return; }
+  }
+  g.displayed = !g.displayed;
+  setGradedCards(list);
+  renderGraded();
+}
+function sellGradedCard(uid){
+  const list = getGradedCards();
+  const idx = list.findIndex(x => x.uid === uid);
+  if(idx < 0) return;
+  const g = list[idx];
+  const value = gradedSellValue(g.rareza, g.grade, g.signed);
+  if(!confirm('¿Vender esta figurita calidad ' + g.grade + ' por ' + value + ' monedas rojas? No se puede deshacer.')) return;
+  list.splice(idx, 1); setGradedCards(list);
+  addCoins(value);
+  renderGraded();
+}
+
+let collection = loadCollection();
+
+/* ============ PULL LOGIC ============ */
+function buildPool(filterFn){
+  const pool = [];
+  for(const card of CARDS){
+    for(const v of card.variantes){
+      if(filterFn && !filterFn(v)) continue;
+      const w = RARITY_WEIGHT[v.rareza] * (v.alternativa ? ALT_MULTIPLIER : 1);
+      pool.push({ card, variant: v, weight: w });
+    }
+  }
+  return pool;
+}
+/* Para los "pisos" garantizados (sobre SSR+/UR+) NO aplicamos el multiplicador de
+   alternativa: si no, una LR "normal" termina pesando más que una UR que resulta
+   ser arte alternativo, y el sobre garantizado te tira demasiadas LR. Acá el peso
+   es puramente por rareza, para que UR siga siendo más común que LR dentro del piso. */
+function buildTierPool(filterFn){
+  const pool = [];
+  for(const card of CARDS){
+    for(const v of card.variantes){
+      if(filterFn && !filterFn(v)) continue;
+      pool.push({ card, variant: v, weight: RARITY_WEIGHT[v.rareza] });
+    }
+  }
+  return pool;
+}
+const POOL_ALL = buildPool();
+const POOL_SSR_PLUS = buildTierPool(v => ['SSR','UR','LR'].includes(v.rareza));
+const POOL_UR_PLUS = buildTierPool(v => ['UR','LR'].includes(v.rareza));
+const POOL_LR_ONLY = buildTierPool(v => v.rareza === 'LR');
+
+function weightedPick(pool){
+  const total = pool.reduce((s,p)=>s+p.weight,0);
+  let r = Math.random() * total;
+  for(const entry of pool){ r -= entry.weight; if(r <= 0) return entry; }
+  return pool[pool.length-1];
+}
+function pullPack(count, tier){
+  tier = tier || 'ssr';
+  const pulls = [];
+  for(let i=0;i<count;i++){ pulls.push(weightedPick(POOL_ALL)); }
+  const hasSSRPlus = pulls.some(p => ['SSR','UR','LR'].includes(p.variant.rareza));
+  const tickets = getLuckyTickets();
+  if(!hasSSRPlus && (Math.random() < SSR_PLUS_FLOOR_CHANCE || tickets > 0)){
+    pulls[pulls.length - 1] = weightedPick(POOL_SSR_PLUS);
+  }
+  if(tickets > 0){ setLuckyTickets(tickets - 1); bumpStat('ticketsUsed', 1); }
+  if(tier === 'ur'){
+    const hasURPlus = pulls.some(p => ['UR','LR'].includes(p.variant.rareza));
+    if(!hasURPlus && Math.random() < UR_PLUS_FLOOR_CHANCE){
+      pulls[pulls.length - 1] = weightedPick(POOL_UR_PLUS);
+    }
+  } else if(tier === 'lr'){
+    /* Sobre Legendario: garantiza SIEMPRE al menos una LR, por eso es caro y único por cuenta (ver SHOP_LIFETIME_LIMITS) */
+    const hasLR = pulls.some(p => p.variant.rareza === 'LR');
+    if(!hasLR){
+      pulls[pulls.length - 1] = weightedPick(POOL_LR_ONLY);
+    }
+  }
+  /* La firma se rolea al final, sobre el resultado definitivo de cada figurita, y es
+     completamente independiente de la rareza: cualquier pull puede salir firmado. */
+  return pulls.map(p => ({ card: p.card, variant: p.variant, signed: Math.random() < SIGNED_SIGNATURE_CHANCE }));
+}
+
+/* ============ COLLECTION HELPERS ============ */
+function ownsVariant(slotId, rareza, alternativa){
+  const e = collection[slotId];
+  if(!e) return false;
+  return e.owned.some(o => o.rareza===rareza && o.alternativa===alternativa);
+}
+function addNewVariant(card, variant, signed){
+  let entry = collection[card.id];
+  if(!entry){ entry = { owned: [], selected: null, foil:false, pasted:false }; collection[card.id] = entry; }
+  entry.owned.push({ rareza: variant.rareza, alternativa: variant.alternativa, signed: !!signed });
+  entry.selected = { rareza: variant.rareza, alternativa: variant.alternativa };
+  entry.pasted = false; /* toda figurita nueva, sea la primera o una variante extra de una casilla ya ocupada, hay que pegarla a mano */
+  saveCollection(collection);
+}
+function findVariant(card, rareza, alternativa){
+  return card.variantes.find(v=>v.rareza===rareza && v.alternativa===alternativa);
+}
+function isSignedVariant(cardId, rareza, alternativa){
+  const entry = collection[cardId];
+  if(!entry) return false;
+  const o = entry.owned.find(x => x.rareza===rareza && x.alternativa===alternativa);
+  return !!(o && o.signed);
+}
+/* Para el logro "Firmado por Akira Toriyama": revisa TODOS los lugares donde puede estar
+   guardada una figurita firmada (álbum, top loader, expositor, o el apartado especial de
+   firmadas repetidas), no solo el álbum. */
+function hasAnySignedCard(){
+  for(const id in collection){
+    if(collection[id].owned.some(o => o.signed)) return true;
+  }
+  if(getToploadedCards().some(tl => tl.signed)) return true;
+  if(getGradedCards().some(g => g.signed)) return true;
+  if(getSignedDupes().length > 0) return true;
+  return false;
+}
+/* Crea (si hace falta) o quita la imagen de la firma superpuesta sobre una carta.
+   Para nodos persistentes que se reusan entre renders (el detalle, la slab grande). Los que se
+   reconstruyen desde cero en cada render (grilla, sobres, funda chica) simplemente no la agregan. */
+function applySignatureOverlay(container, signed){
+  let sig = container.querySelector('.signature-overlay');
+  if(signed){
+    if(!sig){
+      sig = document.createElement('img');
+      sig.className = 'signature-overlay';
+      sig.src = 'imagenes/Akira-Signature.png';
+      sig.alt = 'Firma de Akira Toriyama';
+      sig.onerror = () => { sig.style.display = 'none'; };
+      container.appendChild(sig);
+    }
+    sig.style.display = '';
+  } else if(sig){
+    sig.remove();
+  }
+}
+function buildSignatureImg(){
+  const sig = document.createElement('img');
+  sig.className = 'signature-overlay';
+  sig.src = 'imagenes/Akira-Signature.png';
+  sig.alt = 'Firma de Akira Toriyama';
+  sig.onerror = () => { sig.style.display = 'none'; };
+  return sig;
+}
+function countOwnedSlots(){ return Object.keys(collection).length; }
+/* Cartas que tienen al menos una variante de arte alternativo disponible */
+const ALT_CARDS = CARDS.filter(c => c.variantes.some(v => v.alternativa));
+function countOwnedAltSlots(){
+  return ALT_CARDS.filter(c => {
+    const entry = collection[c.id];
+    return entry && entry.owned.some(o => o.alternativa);
+  }).length;
+}
+function rarityFallbackBg(rareza){
+  const map = { N:'#8a8f98', R:'#3f9142', SR:'#2f7fd1', SSR:'#e0529a', UR:'#e3b23c', LR:'linear-gradient(135deg,#ff6a1a,#8659c9)' };
+  return map[rareza] || '#999';
+}
+
+/* ============ RENDER: ALBUM ============ */
+const gridEl = document.getElementById('grid');
+function renderGrid(justLandedIds){
+  justLandedIds = justLandedIds || [];
+  gridEl.innerHTML = '';
+  for(const card of CARDS){
+    const entry = collection[card.id];
+    const slot = document.createElement('div');
+    slot.className = 'slot' + (entry ? ' filled' : '');
+    if(entry && entry.pasted === false){
+      slot.classList.add('pending');
+      const v = findVariant(card, entry.selected.rareza, entry.selected.alternativa);
+      const signedPending = isSignedVariant(card.id, entry.selected.rareza, entry.selected.alternativa);
+      if(signedPending) slot.classList.add('signed-card');
+      const img = document.createElement('img');
+      img.src = cardImgSrc(v.img); img.loading = 'lazy'; img.style.opacity = '0.4';
+      img.onerror = () => { img.style.display='none'; slot.style.background = rarityFallbackBg(v.rareza); };
+      slot.appendChild(img);
+      if(signedPending) slot.appendChild(buildSignatureImg());
+      const label = document.createElement('div');
+      label.className = 'pending-label';
+      label.textContent = 'Tocá para pegar';
+      slot.appendChild(label);
+      slot.addEventListener('click', ()=> pasteSticker(card));
+    } else if(entry){
+      const sel = entry.selected;
+      const v = findVariant(card, sel.rareza, sel.alternativa);
+      if(v.rareza === 'LR') slot.classList.add('is-lr-slot');
+      if(entry.foil && v.rareza !== 'LR') slot.classList.add('foil-effect');
+      const signed = isSignedVariant(card.id, sel.rareza, sel.alternativa);
+      if(signed) slot.classList.add('signed-card');
+      const img = document.createElement('img');
+      img.src = cardImgSrc(v.img); img.loading = 'lazy';
+      img.onerror = () => { img.style.display='none'; slot.style.background = rarityFallbackBg(v.rareza); };
+      slot.appendChild(img);
+      if(signed) slot.appendChild(buildSignatureImg());
+      const badge = document.createElement('div');
+      badge.innerHTML = rarityBadgeSVG(v.rareza);
+      badge.style.position='absolute'; badge.style.bottom='4px'; badge.style.left='4px'; badge.style.width='32px'; badge.style.height='32px';
+      slot.appendChild(badge);
+      if(v.alternativa){ const alt = document.createElement('div'); alt.className='alt-tag'; alt.textContent='ALT'; slot.appendChild(alt); }
+      slot.addEventListener('click', ()=> openDetail(card));
+      if(justLandedIds.includes(card.id)) slot.classList.add('new-land');
+    } else {
+      const num = document.createElement('div'); num.className='num'; num.textContent='#'+card.id;
+      slot.appendChild(num);
+    }
+    gridEl.appendChild(slot);
+  }
+  updateProgress();
+}
+function pasteSticker(card){
+  const entry = collection[card.id];
+  if(!entry || entry.pasted !== false) return;
+  playPasteSound();
+  entry.pasted = true;
+  saveCollection(collection);
+  renderGrid([card.id]);
+}
+function updateProgress(){
+  const owned = countOwnedSlots();
+  document.getElementById('progressLabel').textContent = owned + ' / ' + CARDS.length + ' conseguidas';
+  document.getElementById('progressFill').style.width = Math.round(owned/CARDS.length*100) + '%';
+  const ownedAlt = countOwnedAltSlots();
+  document.getElementById('progressAltLabel').textContent = ownedAlt + ' / ' + ALT_CARDS.length + ' alternativas conseguidas';
+  document.getElementById('progressAltFill').style.width = (ALT_CARDS.length ? Math.round(ownedAlt/ALT_CARDS.length*100) : 0) + '%';
+}
+function updateCoinUI(){
+  document.getElementById('coinAmount').textContent = getCoins();
+}
+
+/* ============ PACK COOLDOWN / INVENTARIO DE SOBRES ============ */
+const packVisual = document.getElementById('packVisual');
+const packText = document.getElementById('packText');
+const packAction = document.getElementById('packAction');
+const packStack = document.getElementById('packStack');
+const packStackBadge = document.getElementById('packStackBadge');
+
+function grantDailyPacksIfNeeded(){
+  if(getTestMode()) return;
+  const now = Date.now();
+  let last = getLastOpen();
+  if(last === 0){
+    addToInventory('daily');
+    setLastOpen(now);
+    return;
+  }
+  let grants = Math.floor((now - last) / PACK_COOLDOWN_MS);
+  if(grants > 0){
+    grants = Math.min(grants, 30); // tope de seguridad, no de diseño
+    addToInventory('daily', grants);
+    setLastOpen(last + grants * PACK_COOLDOWN_MS);
+  }
+}
+function msUntilNextPack(){
+  if(getTestMode()) return 0;
+  const last = getLastOpen() || Date.now();
+  return Math.max(0, (last + PACK_COOLDOWN_MS) - Date.now());
+}
+function formatMs(ms){
+  const total = Math.floor(ms/1000);
+  const h = String(Math.floor(total/3600)).padStart(2,'0');
+  const m = String(Math.floor((total%3600)/60)).padStart(2,'0');
+  const s = String(total%60).padStart(2,'0');
+  return h+':'+m+':'+s;
+}
+let packStackSig = null;
+function renderPackStack(){
+  const inv = getInventory();
+  /* refreshPackUI corre cada segundo: si la pila no cambió, no se rearma (evita rehacer 4 imágenes
+     por segundo y que un arte de sobre faltante repita su aviso de error en consola cada segundo) */
+  const sig = inv.slice(0, 4).join(',') + '|' + inv.length;
+  if(sig === packStackSig) return;
+  packStackSig = sig;
+  packStack.innerHTML = '';
+  if(inv.length === 0){
+    const img = document.createElement('img');
+    img.className = 'stack-item stack-empty-hint';
+    img.src = PACK_TYPES.daily.art;
+    img.onerror = function(){ console.warn('[imagen de sobre no se pudo cargar]', this.src); this.style.display='none'; };
+    packStack.appendChild(img);
+    packStackBadge.style.display = 'none';
+    return;
+  }
+  const shown = inv.slice(0, 4);
+  shown.forEach((kind, idx) => {
+    const img = document.createElement('img');
+    img.className = 'stack-item';
+    img.src = (PACK_TYPES[kind] || PACK_TYPES.daily).art;
+    img.style.transform = 'translate(' + (idx*6) + 'px,' + (-idx*6) + 'px) rotate(' + (idx*3) + 'deg)';
+    img.style.zIndex = idx;
+    img.onerror = function(){ console.warn('[imagen de sobre no se pudo cargar]', this.src); this.style.display='none'; };
+    packStack.appendChild(img);
+  });
+  packStackBadge.style.display='flex'; packStackBadge.textContent = 'x' + inv.length;
+}
+/* Solo toca el DOM si el contenido cambió. Antes, en modo prueba, el botón "Abrir sobre" se
+   reemplazaba por uno nuevo CADA SEGUNDO y un click que cayera justo en ese cambio se perdía. */
+function setPackActionHtml(html){
+  if(packAction.dataset.html === html) return;
+  packAction.dataset.html = html;
+  packAction.innerHTML = html;
+}
+packAction.addEventListener('click', e => { if(e.target.closest('#openPackBtn')) openPackPreview('daily', false); });
+function refreshPackUI(){
+  grantDailyPacksIfNeeded();
+  const inv = getInventory();
+  const remaining = msUntilNextPack();
+  renderPackStack();
+  const ticketBadge = document.getElementById('ticketBadge');
+  const ticketsNow = getLuckyTickets();
+  ticketBadge.style.display = ticketsNow > 0 ? 'inline-block' : 'none';
+  ticketBadge.textContent = '🎫 Ticket de la suerte activo' + (ticketsNow > 1 ? ' (x' + ticketsNow + ')' : '');
+  const line = document.getElementById('extraSobresLine');
+  if(line) line.textContent = 'Sobres en tu pila: ' + inv.length;
+  if(getTestMode()){
+    packVisual.classList.remove('disabled');
+    packText.textContent = 'Modo prueba activo: sobres ilimitados sin esperar el cooldown.';
+    setPackActionHtml('<button class="btn" id="openPackBtn">Abrir sobre</button>');
+  } else if(inv.length > 0){
+    packVisual.classList.remove('disabled');
+    packText.textContent = inv.length === 1
+      ? 'Tenés 1 sobre esperando. Tocá la pila para abrirlo.'
+      : 'Tenés ' + inv.length + ' sobres esperando. Tocá la pila para abrir uno.';
+    setPackActionHtml('<div class="timer" style="font-size:14px;">Próximo sobre gratis en ' + formatMs(remaining) + '</div>');
+  } else {
+    packVisual.classList.add('disabled');
+    packText.textContent = 'Todavía no tenés sobres. El próximo diario llega en:';
+    setPackActionHtml('<div class="timer">' + formatMs(remaining) + '</div>');
+  }
+}
+setInterval(refreshPackUI, 1000);
+packVisual.addEventListener('click', () => {
+  if(getTestMode()){ openPackPreview('daily', false); return; }
+  const inv = getInventory();
+  if(inv.length > 0) openPackPreview(inv[0], true);
+});
+
+document.querySelectorAll('.pack-art, .pack-big img').forEach(el => {
+  el.addEventListener('error', function(){
+    this.style.display = 'none';
+    this.closest('.pack-visual, .pack-big').classList.add('no-art');
+  });
+});
+
+/* ---- Sonidos ---- */
+/* Los agrega el usuario con estos nombres exactos (si usás otra extensión, avisame y ajusto la ruta):
+   sonidos/corte-papel.mp3    -> al abrir el sobre
+   sonidos/desliz-carta.mp3   -> uno por cada figurita que se revela
+   sonidos/pegado-figurita.mp3 -> al pegar una figurita en el álbum
+   sonidos/carta-en-case.mp3   -> al graduar una figurita, cuando entra al case (la agrega el usuario)
+   sonidos/carta-en-funda.mp3  -> al guardar una figurita en un Top Loader (si no está, suena desliz-carta.mp3)
+   sonidos/carta-fuera-funda.mp3 -> al sacarla del Top Loader para volver a pegarla (idem, cae a desliz-carta.mp3)
+
+   Videos de invocación (carpeta videos/, los agrega el usuario):
+   videos/gokusigned.mp4  -> si el sobre trae una figurita Firmada (tiene prioridad incluso sobre una LR)
+   videos/BulmaLRanim.mp4 -> si el sobre trae una LR y ninguna figurita Firmada */
+function playSound(path, volume){
+  if(isMuted()) return;
+  try{
+    const audio = new Audio(path);
+    audio.volume = volume;
+    audio.play().catch((e)=>{ console.warn('[audio bloqueado o no encontrado]', path, e && e.message); });
+  }catch(e){ console.warn('[audio no se pudo cargar]', path, e && e.message); }
+}
+function playCutSound(){ playSound('sonidos/corte-papel.mp3', 0.7); }
+function playSlideSound(){ playSound('sonidos/desliz-carta.mp3', 0.6); }
+function playPasteSound(){ playSound('sonidos/pegado-figurita.mp3', 0.7); }
+function playAchievementSound(){ playSound('sonidos/logro-desbloqueado.mp3', 0.7); }
+function playGradeSound(){ playSound('sonidos/carta-en-case.mp3', 0.7); }
+/* Igual que playSound, pero si el archivo propio todavía no existe usa uno de reemplazo,
+   así la animación ya tiene sonido desde el primer momento. */
+function playSoundFallback(path, fallbackPath, volume){
+  if(isMuted()) return;
+  let fellBack = false;
+  const fallback = () => { if(fellBack) return; fellBack = true; playSound(fallbackPath, volume); };
+  try{
+    const audio = new Audio(path);
+    audio.volume = volume;
+    audio.addEventListener('error', fallback);
+    audio.play().catch(fallback);
+  }catch(e){ fallback(); }
+}
+function playToploaderInSound(){ playSoundFallback('sonidos/carta-en-funda.mp3', 'sonidos/desliz-carta.mp3', 0.7); }
+function playToploaderOutSound(){ playSoundFallback('sonidos/carta-fuera-funda.mp3', 'sonidos/desliz-carta.mp3', 0.7); }
+
+/* ---- Ver el sobre a tamaño completo, elegir cuál (si hay más de un tipo) y tocarlo para abrirlo ---- */
+const packOpenOverlay = document.getElementById('packOpenOverlay');
+const packBig = document.getElementById('packBig');
+const packBigHint = document.getElementById('packBigHint');
+const packBigLabel = document.getElementById('packBigLabel');
+const packBigTicketNote = document.getElementById('packBigTicketNote');
+const packArrowLeft = document.getElementById('packArrowLeft');
+const packArrowRight = document.getElementById('packArrowRight');
+let pendingKind = null;
+let pendingFromInventory = false;
+let previewKinds = [];
+let previewIndex = 0;
+
+function distinctKinds(inv){
+  const seen = [];
+  for(const k of inv){ if(!seen.includes(k)) seen.push(k); }
+  return seen;
+}
+function countKind(inv, kind){ return inv.filter(k => k === kind).length; }
+
+function showPreviewKind(){
+  const kind = previewKinds[previewIndex];
+  pendingKind = kind;
+  const cfg = PACK_TYPES[kind] || PACK_TYPES.daily;
+  packBig.classList.remove('opening', 'no-art');
+  document.getElementById('packBigArt').src = cfg.art;
+  document.querySelector('#packBigTop img').src = cfg.art;
+  document.querySelector('#packBigBottom img').src = cfg.art;
+  packBigHint.textContent = 'Tocá el sobre para abrirlo';
+  if(pendingFromInventory){
+    const n = countKind(getInventory(), kind);
+    packBigLabel.textContent = cfg.label + (n > 1 ? ' (x' + n + ')' : '');
+  } else {
+    packBigLabel.textContent = cfg.label;
+  }
+  const showArrows = previewKinds.length > 1;
+  packArrowLeft.classList.toggle('show', showArrows);
+  packArrowRight.classList.toggle('show', showArrows);
+  packBigTicketNote.style.display = getLuckyTickets() > 0 ? 'block' : 'none';
+}
+function openPackPreview(kind, fromInventory){
+  pendingFromInventory = !!fromInventory;
+  if(fromInventory){
+    previewKinds = distinctKinds(getInventory());
+    previewIndex = Math.max(0, previewKinds.indexOf(kind));
+  } else {
+    previewKinds = [kind];
+    previewIndex = 0;
+  }
+  showPreviewKind();
+  packOpenOverlay.classList.add('show');
+}
+packArrowLeft.addEventListener('click', (e)=>{
+  e.stopPropagation();
+  if(previewKinds.length < 2) return;
+  previewIndex = (previewIndex - 1 + previewKinds.length) % previewKinds.length;
+  showPreviewKind();
+});
+packArrowRight.addEventListener('click', (e)=>{
+  e.stopPropagation();
+  if(previewKinds.length < 2) return;
+  previewIndex = (previewIndex + 1) % previewKinds.length;
+  showPreviewKind();
+});
+packBig.addEventListener('click', ()=>{
+  if(packBig.classList.contains('opening') || !pendingKind) return;
+  playCutSound();
+  packBig.classList.add('opening');
+  packBigHint.textContent = '';
+  packArrowLeft.classList.remove('show'); packArrowRight.classList.remove('show');
+  setTimeout(()=>{
+    packOpenOverlay.classList.remove('show');
+    packBig.classList.remove('opening');
+    const kind = pendingKind;
+    const fromInv = pendingFromInventory;
+    pendingKind = null; pendingFromInventory = false; previewKinds = []; previewIndex = 0;
+    if(fromInv){
+      const inv = getInventory();
+      const idx = inv.indexOf(kind);
+      if(idx > -1) inv.splice(idx, 1);
+      setInventory(inv);
+      renderPackStack();
+    }
+    runPull(kind);
+  }, 480);
+});
+document.getElementById('packOpenClose').addEventListener('click', ()=>{
+  pendingKind = null; pendingFromInventory = false; previewKinds = []; previewIndex = 0;
+  packOpenOverlay.classList.remove('show');
+});
+
+/* ============ OPEN PACK / REVEAL ============ */
+const revealOverlay = document.getElementById('revealOverlay');
+const revealClose = document.getElementById('revealClose');
+const pullGrid = document.getElementById('pullGrid');
+let pendingPulls = null;
+
+function runPull(kind){
+  const cfg = PACK_TYPES[kind] || PACK_TYPES.daily;
+  pendingPulls = pullPack(cfg.count, cfg.tier);
+  bumpStat('packsOpened', 1);
+  bumpStat('packsOpened_' + kind, 1);
+  if(kind === 'shopE') bumpStat('exclusivePacksOpened', 1);
+  refreshPackUI(); refreshTicketLine();
+  checkAchievements();
+  /* Si viene una figurita firmada, ese video tiene prioridad incluso sobre una LR en el mismo sobre. */
+  const hasSigned = pendingPulls.some(p => p.signed);
+  const hasLR = pendingPulls.some(p => p.variant.rareza === 'LR');
+  if(hasSigned){
+    showSummonVideo('videos/gokusigned.mp4', () => { buildPullGrid(); revealOverlay.classList.add('show'); });
+  } else if(hasLR){
+    showSummonVideo('videos/BulmaLRanim.mp4', () => { buildPullGrid(); revealOverlay.classList.add('show'); });
+  } else {
+    buildPullGrid();
+    revealOverlay.classList.add('show');
+  }
+}
+let pullRevealIndex = 0;   /* modo "de a una": cuántas ya se revelaron · modo "mazo": índice de la carta de arriba */
+let pullDupHtml = [];      /* por figurita: HTML del cartel de "repetida" (o null si es nueva) */
+/* Calcula UNA sola vez, al abrir el sobre, qué cartel de "repetida" le toca a cada figurita, con el
+   mismo orden y las mismas reglas con que después las procesa finalizePull() (incluye repetidas
+   dentro del mismo sobre y el tope de firmadas guardadas). Así los 3 modos muestran lo mismo sin
+   importar en qué orden se revelen las cartas. */
+function computePullDupHtml(){
+  let signedSlots = getSignedDupes().length;
+  const seen = new Set();
+  pullDupHtml = pendingPulls.map(({ card, variant, signed }) => {
+    const key = card.id + '|' + variant.rareza + '|' + variant.alternativa;
+    const isDup = ownsVariant(card.id, variant.rareza, variant.alternativa) || seen.has(key);
+    seen.add(key);
+    if(!isDup) return null;
+    if(signed){
+      if(signedSlots < SIGNED_DUPE_MAX_SLOTS){ signedSlots++; return '📦<span>Repetida: va al apartado especial de firmadas</span>'; }
+      return coinIconSVG() + '<span>+' + SIGNED_COIN_VALUE + ' (apartado lleno, se vende sola)</span>';
+    }
+    return coinIconSVG() + '<span>+' + COIN_VALUE[variant.rareza] + ' (repetida)</span>';
+  });
+}
+/* Elementos de información de una figurita: insignia de rareza + número, cartel de firmada (si
+   corresponde) y cartel de repetida (si corresponde). Cada modo decide dónde y cuándo mostrarlos. */
+function buildPullInfoEls(i){
+  const { card, variant, signed } = pendingPulls[i];
+  const els = [];
+  const sub = document.createElement('div');
+  sub.className = 'modal-sub';
+  sub.innerHTML = rarityBadgeSVG(variant.rareza) + '<span>#' + card.id + (variant.alternativa ? ' · alt' : '') + '</span>';
+  els.push(sub);
+  if(signed){
+    const sig = document.createElement('div');
+    sig.className = 'dup-tag signed-tag';
+    sig.innerHTML = '✒️<span>¡Firmada por Akira Toriyama!</span>';
+    els.push(sig);
+  }
+  if(pullDupHtml[i]){
+    const dup = document.createElement('div');
+    dup.className = 'dup-tag';
+    dup.innerHTML = pullDupHtml[i];
+    els.push(dup);
+  }
+  return els;
+}
+/* Dorso de la carta: lo agrega el usuario como imagenes/dorso.png. Si no existe, se ve el "?" de
+   siempre (CSS de .pull-card-back::after) en vez de romperse. */
+function addDorsoImg(cardEl){
+  const dorso = document.createElement('img');
+  dorso.className = 'pull-card-back-img';
+  dorso.src = 'imagenes/dorso.png';
+  dorso.alt = '';
+  dorso.onload = () => { cardEl.classList.add('has-dorso'); };
+  dorso.onerror = () => { dorso.remove(); };
+  cardEl.appendChild(dorso);
+}
+/* Arma la versión chica y YA revelada de una figurita (como se ven todas juntas al final, en
+   cualquiera de los 3 modos). La usan el modo "todas juntas" y el modo "mazo en mano" una vez que
+   cada carta pasa del mazo a la mesa. */
+function buildRevealedSmallItem(i, withDelay){
+  const { variant, signed } = pendingPulls[i];
+  const item = document.createElement('div');
+  item.className = 'pull-item revealed';
+  const cardEl = document.createElement('div');
+  cardEl.className = 'modal-card reveal' + (variant.rareza === 'LR' ? ' is-LR' : '') + (signed ? ' signed-card' : '');
+  if(withDelay) cardEl.style.animationDelay = (i * 0.08) + 's';
+  cardEl.style.width = 'min(150px, 26vw)';
+  const img = document.createElement('img');
+  img.className = 'pull-card-img';
+  img.src = cardImgSrc(variant.img);
+  img.onerror = () => { img.style.display = 'none'; cardEl.style.background = rarityFallbackBg(variant.rareza); };
+  cardEl.appendChild(img);
+  if(signed) cardEl.appendChild(buildSignatureImg());
+  item.appendChild(cardEl);
+  buildPullInfoEls(i).forEach(el => item.appendChild(el));
+  return item;
+}
+/* Construye el sobre entero según la opción elegida en Opciones: 'all' (todas juntas, como
+   antes), 'one' (de a una, chicas, en la grilla; se elige libremente cuál revelar) o 'stack'
+   (un mazo grande que se va pasando). */
+function buildPullGrid(){
+  pullGrid.innerHTML = '';
+  pullRevealIndex = 0;
+  computePullDupHtml();
+  const mode = getRevealMode();
+  document.getElementById('pullStackArea').style.display = mode === 'stack' ? '' : 'none';
+  pullGrid.style.display = mode === 'stack' ? 'none' : '';
+  document.getElementById('pasteBtn').style.display = mode === 'all' ? '' : 'none';
+  revealClose.style.display = mode === 'all' ? '' : 'none';
+
+  if(mode === 'all'){
+    document.getElementById('revealSubText').textContent = 'Andá al álbum y tocá cada figurita nueva para pegarla';
+    pendingPulls.forEach((p, i) => {
+      pullGrid.appendChild(buildRevealedSmallItem(i, true));
+      setTimeout(playSlideSound, i * 80);
+    });
+  } else if(mode === 'stack'){
+    document.getElementById('revealSubText').textContent = 'Tocá el mazo para ver tu primera figurita';
+    renderStackCard();
+  } else {
+    document.getElementById('revealSubText').textContent = 'Elegí la figurita que querés revelar primero';
+    pendingPulls.forEach((p, i) => {
+      const { variant, signed } = p;
+      const item = document.createElement('div');
+      item.className = 'pull-item pull-item-active'; /* todas se pueden elegir, en el orden que quiera el usuario */
+      const cardEl = document.createElement('div');
+      cardEl.className = 'modal-card pull-card-back';
+      cardEl.style.width = 'min(150px, 26vw)';
+      addDorsoImg(cardEl);
+      const img = document.createElement('img');
+      img.className = 'pull-card-img';
+      img.src = cardImgSrc(variant.img);
+      img.style.display = 'none'; /* precarga oculta: al revelar aparece al toque, sin esperar la red */
+      img.onerror = () => { img.style.display = 'none'; cardEl.dataset.fallbackBg = rarityFallbackBg(variant.rareza); };
+      cardEl.appendChild(img);
+      if(signed){ const sig = buildSignatureImg(); sig.style.display = 'none'; cardEl.appendChild(sig); }
+      item.appendChild(cardEl);
+      const hint = document.createElement('div');
+      hint.className = 'pull-tap-hint';
+      hint.textContent = 'Tocá para revelar';
+      item.appendChild(hint);
+      buildPullInfoEls(i).forEach(el => { el.style.visibility = 'hidden'; item.appendChild(el); });
+      item.addEventListener('click', () => revealPullCard(i));
+      pullGrid.appendChild(item);
+    });
+  }
+}
+/* Revela la figurita en la posición i (modo "de a una"). Se puede elegir cualquiera, en cualquier
+   orden; una ya revelada ignora los clicks. Al revelar la última aparecen los botones de cierre. */
+function revealPullCard(i){
+  const item = pullGrid.children[i];
+  if(!item || item.classList.contains('revealed')) return;
+  const { variant, signed } = pendingPulls[i];
+  const cardEl = item.querySelector('.modal-card');
+  item.classList.remove('pull-item-active');
+  item.classList.add('revealed');
+  item.querySelector('.pull-tap-hint').remove();
+  const dorsoImg = cardEl.querySelector('.pull-card-back-img');
+  if(dorsoImg) dorsoImg.remove();
+  cardEl.classList.remove('pull-card-back', 'has-dorso');
+  cardEl.classList.add('reveal');
+  if(variant.rareza === 'LR') cardEl.classList.add('is-LR');
+  if(signed) cardEl.classList.add('signed-card');
+  const img = cardEl.querySelector('.pull-card-img');
+  if(cardEl.dataset.fallbackBg){ cardEl.style.background = cardEl.dataset.fallbackBg; }
+  else { img.style.display = ''; }
+  const sigImg = cardEl.querySelector('.signature-overlay');
+  if(sigImg) sigImg.style.display = '';
+  item.querySelectorAll('.modal-sub, .dup-tag').forEach(el => { el.style.visibility = ''; });
+  playSlideSound();
+  pullRevealIndex++;
+  const total = pendingPulls.length;
+  if(pullRevealIndex < total){
+    document.getElementById('revealSubText').textContent = 'Reveladas ' + pullRevealIndex + ' de ' + total + ' — elegí la que quieras';
+  } else {
+    document.getElementById('revealSubText').textContent = 'Andá al álbum y tocá cada figurita nueva para pegarla';
+    document.getElementById('pasteBtn').style.display = '';
+    revealClose.style.display = '';
+  }
+}
+/* ============ MODO "MAZO EN MANO" ============
+   Una sola carta grande (tamaño de inspección) representa siempre la de arriba del mazo. Primer
+   toque: la revela en el mismo lugar. Segundo toque: la manda a la mesa (grilla chica, ya
+   revelada) y sube la siguiente del mazo. Al terminar, el mazo desaparece y queda la grilla
+   armada exactamente igual que en los otros dos modos. */
+let pullStackFlipped = false;
+function updateStackCounter(){
+  const left = pendingPulls.length - pullRevealIndex;
+  document.getElementById('pullStackCounter').textContent = left <= 1 ? 'Es la última' : ('Quedan ' + left + ' cartas');
+  /* Hasta 4 cartas asomando debajo de la de arriba: cuantas más quedan, más gruesa se ve la pila */
+  document.querySelector('.pull-stack-deck').querySelectorAll('.pull-stack-shadow').forEach(el => {
+    el.style.display = (left - 1) >= Number(el.dataset.depth) ? '' : 'none';
+  });
+}
+function renderStackCard(){
+  pullStackFlipped = false;
+  const stackCard = document.getElementById('pullStackCard');
+  stackCard.className = 'modal-card pull-card-back pull-stack-card pull-stack-deal';
+  stackCard.innerHTML = '';
+  stackCard.style.background = '';
+  addDorsoImg(stackCard);
+  document.getElementById('pullStackHint').textContent = 'Tocá para revelar';
+  document.getElementById('pullStackInfo').style.visibility = 'hidden';
+  updateStackCounter();
+}
+function stackCardClick(){
+  if(pullRevealIndex >= pendingPulls.length) return;
+  if(!pullStackFlipped){
+    revealStackCard(pullRevealIndex);
+  } else {
+    advanceStack();
+  }
+}
+function revealStackCard(i){
+  const { variant, signed } = pendingPulls[i];
+  const stackCard = document.getElementById('pullStackCard');
+  stackCard.innerHTML = '';
+  stackCard.className = 'modal-card reveal pull-stack-card' + (variant.rareza === 'LR' ? ' is-LR' : '') + (signed ? ' signed-card' : '');
+  const img = document.createElement('img');
+  img.className = 'pull-card-img';
+  img.src = cardImgSrc(variant.img);
+  img.onerror = () => { img.style.display = 'none'; stackCard.style.background = rarityFallbackBg(variant.rareza); };
+  stackCard.appendChild(img);
+  if(signed) stackCard.appendChild(buildSignatureImg());
+  const info = document.getElementById('pullStackInfo');
+  info.innerHTML = '';
+  buildPullInfoEls(i).forEach(el => info.appendChild(el));
+  info.style.visibility = '';
+  document.getElementById('pullStackHint').textContent = pendingPulls.length - pullRevealIndex > 1
+    ? 'Tocá de nuevo para dejarla a un lado'
+    : 'Tocá de nuevo para terminar';
+  playSlideSound();
+  pullStackFlipped = true;
+}
+function advanceStack(){
+  pullGrid.appendChild(buildRevealedSmallItem(pullRevealIndex, false));
+  pullRevealIndex++;
+  if(pullRevealIndex < pendingPulls.length){
+    renderStackCard();
+  } else {
+    document.getElementById('pullStackArea').style.display = 'none';
+    pullGrid.style.display = '';
+    document.getElementById('revealSubText').textContent = 'Andá al álbum y tocá cada figurita nueva para pegarla';
+    document.getElementById('pasteBtn').style.display = '';
+    revealClose.style.display = '';
+  }
+}
+document.getElementById('pullStackCard').addEventListener('click', stackCardClick);
+/* ---- Video especial de invocación: firmada (videos/gokusigned.mp4) o LR (videos/BulmaLRanim.mp4) ----
+   Firefox/LibreWolf son mucho más estrictos que Chrome para permitir el autoplay con sonido: acá
+   el play() llega varios milisegundos después del click (hay un setTimeout de por medio para la
+   animación del sobre), y Firefox puede considerar que ya "se venció" el permiso del click y
+   bloquear el video. Por eso NUNCA nos quedamos solo esperando a que termine: si el navegador lo
+   bloquea, reintentamos una vez muteado (el autoplay muteado casi nunca se bloquea) y, si ni así
+   se puede, seguimos directo a la revelación de cartas en vez de dejar la pantalla en negro. */
+function showSummonVideo(src, onDone){
+  const overlay = document.getElementById('lrVideoOverlay');
+  const video = document.getElementById('lrVideoEl');
+  let done = false;
+  const finish = () => {
+    if(done) return;
+    done = true;
+    overlay.classList.remove('show');
+    video.pause();
+    onDone();
+  };
+  video.muted = isMuted(); /* si el usuario silenció los sonidos, el video se reproduce mudo */
+  video.src = src;
+  video.onended = finish;
+  video.onerror = () => { console.warn('[video no se pudo cargar]', video.src); finish(); }; // si el archivo no está todavía, seguimos directo a la revelación
+  document.getElementById('lrVideoSkip').onclick = finish;
+  overlay.classList.add('show');
+  try{ video.currentTime = 0; }catch(e){}
+  video.play().catch((e)=>{
+    console.warn('[video bloqueado por el navegador, reintentando muteado]', e && e.message);
+    video.muted = true;
+    video.play().catch((e2)=>{
+      console.warn('[video bloqueado incluso muteado, se salta]', e2 && e2.message);
+      finish();
+    });
+  });
+}
+function finalizePull(){
+  if(pendingPulls){
+    let coinsEarned = 0;
+    for(const p of pendingPulls){
+      const { card, variant, signed } = p;
+      bumpStat('pulled_' + variant.rareza, 1); /* total de figuritas conseguidas en sobres, por rareza */
+      if(signed) bumpStat('signedFound', 1);
+      if(ownsVariant(card.id, variant.rareza, variant.alternativa)){
+        if(signed){
+          const dupes = getSignedDupes();
+          if(dupes.length < SIGNED_DUPE_MAX_SLOTS){
+            dupes.push({ uid: genUid(), cardId: card.id, rareza: variant.rareza, alternativa: variant.alternativa, signed:true });
+            setSignedDupes(dupes);
+            bumpStat('signedDupesStored', 1);
+          } else {
+            /* apartado lleno (y, al ser repetida, tampoco hay lugar en el álbum): se vende sola */
+            coinsEarned += SIGNED_COIN_VALUE;
+            bumpStat('dupesConverted', 1);
+          }
+        } else {
+          coinsEarned += COIN_VALUE[variant.rareza];
+          bumpStat('dupesConverted', 1);
+        }
+      } else {
+        addNewVariant(card, variant, signed);
+      }
+    }
+    if(coinsEarned > 0) addCoins(coinsEarned);
+    renderGrid();
+    checkAchievements();
+  }
+  revealOverlay.classList.remove('show');
+  pendingPulls = null;
+}
+document.getElementById('pasteBtn').addEventListener('click', finalizePull);
+document.getElementById('revealClose').addEventListener('click', finalizePull);
+
+/* ============ DETAIL / VARIANT SWITCH ============ */
+const detailOverlay = document.getElementById('detailOverlay');
+const detailCard = document.getElementById('detailCard');
+const detailImg = document.getElementById('detailImg');
+const detailTitle = document.getElementById('detailTitle');
+const detailSub = document.getElementById('detailSub');
+const variantSwitch = document.getElementById('variantSwitch');
+
+/* ============ LWF: animación de cartas LR (opcional, con fallback a imagen fija) ============
+   Requiere lwf.js + card-anim.js cargados como archivos aparte (ver arriba del todo del script).
+   Bajo file:// (doble click) se salta directo a la imagen fija, sin intentar nada — así el juego
+   sigue abriendo simple para cualquiera, y la animación es un plus solo cuando se sirve por
+   http(s) y existe la carpeta assets/<id>/ de esa carta puntual.
+   El "asset_id" de cada carta se saca de su propia URL de imagen (mismo número de carpeta que
+   dokkaninfo.com usa también para el .lwf), así que no hace falta cargar un mapeo aparte: con
+   solo poner la carpeta assets/<id>/ correspondiente, esa LR se anima sola. */
+const LWF_ANIM_ENABLED = location.protocol !== 'file:' && typeof LWF !== 'undefined' && typeof CardAnim !== 'undefined';
+function assetIdFromImgUrl(url){
+  const m = (url || '').match(/\/character\/card\/(\d+)\//);
+  return m ? m[1] : null;
+}
+/* Fábrica reutilizable: un "animador" independiente por cada lugar donde se puede ver una
+   carta en grande (detalle de álbum, case grande de graduada), cada uno con su propio canvas. */
+function makeLwfAnimator(hostEl, canvasEl){
+  let inst = null;
+  function stop(){
+    if(inst){ inst.destroy(); inst = null; }
+    hostEl.classList.remove('lwf-active');
+  }
+  function tryAnimate(v){
+    stop(); // corta cualquier animación anterior antes de intentar la nueva
+    if(!LWF_ANIM_ENABLED || v.rareza !== 'LR') return;
+    const assetId = assetIdFromImgUrl(v.img);
+    if(!assetId) return;
+    inst = CardAnim.mount(canvasEl, assetId, {
+      onload: () => { hostEl.classList.add('lwf-active'); },
+      onerror: (url) => {
+        console.warn('[LWF] No se pudo animar assetId=' + assetId + ' (' + url + '). Se queda con la imagen fija.');
+        stop();
+      }
+    });
+  }
+  return { tryAnimate, stop };
+}
+const detailAnimator = makeLwfAnimator(detailCard, document.getElementById('detailAnimCanvas'));
+/* ============ TILT 3D al inspeccionar (estilo Steam trading cards) ============
+   Reutilizable: se lo enganchamos tanto a la carta de detalle del álbum como al case
+   grande de una carta graduada. Sigue el mouse/dedo con rotación 3D + un "levante" hacia
+   el visor (scale) + un brillo que se mueve con el puntero. Puramente cosmético: no toca
+   nada de LWF, foil ni la lógica del juego. */
+const TILT_MAX_DEG = 16;
+const TILT_LIFT_SCALE = 1.07;
+function attachTilt(cardEl, glareEl){
+  function move(clientX, clientY){
+    const rect = cardEl.getBoundingClientRect();
+    const px = (clientX - rect.left) / rect.width;   // 0..1
+    const py = (clientY - rect.top) / rect.height;   // 0..1
+    const rotY = (Math.min(1, Math.max(0, px)) - 0.5) * TILT_MAX_DEG * 2;
+    const rotX = (0.5 - Math.min(1, Math.max(0, py))) * TILT_MAX_DEG * 2;
+    cardEl.style.transform = 'perspective(900px) rotateX(' + rotX.toFixed(2) + 'deg) rotateY(' + rotY.toFixed(2) + 'deg) scale3d(' + TILT_LIFT_SCALE + ',' + TILT_LIFT_SCALE + ',' + TILT_LIFT_SCALE + ')';
+    if(glareEl){
+      glareEl.style.setProperty('--px', (px * 100).toFixed(1) + '%');
+      glareEl.style.setProperty('--py', (py * 100).toFixed(1) + '%');
+    }
+  }
+  function reset(){
+    cardEl.classList.remove('tilting');
+    cardEl.style.transform = '';
+  }
+  cardEl.addEventListener('mouseenter', () => cardEl.classList.add('tilting'));
+  cardEl.addEventListener('mousemove', (e) => move(e.clientX, e.clientY));
+  cardEl.addEventListener('mouseleave', reset);
+  cardEl.addEventListener('touchstart', () => cardEl.classList.add('tilting'), { passive:true });
+  cardEl.addEventListener('touchmove', (e) => { const t = e.touches[0]; if(t) move(t.clientX, t.clientY); }, { passive:true });
+  cardEl.addEventListener('touchend', reset);
+  return reset;
+}
+const resetDetailTilt = attachTilt(detailCard, document.getElementById('detailGlare'));
+
+function closeDetailOverlay(){
+  detailAnimator.stop();
+  resetDetailTilt();
+  detailOverlay.classList.remove('show');
+}
+
+/* ============ DETALLE GRANDE DE CARTA GRADUADA ============ */
+const gradedDetailOverlay = document.getElementById('gradedDetailOverlay');
+const gradedDetailSlab = document.getElementById('gradedDetailSlab');
+const resetGradedTilt = attachTilt(gradedDetailSlab, document.getElementById('gradedDetailGlare'));
+const gradedAnimator = makeLwfAnimator(document.querySelector('#gradedDetailSlab .slab-big-window'), document.getElementById('gradedDetailAnimCanvas'));
+function closeGradedDetailOverlay(){
+  resetGradedTilt();
+  gradedAnimator.stop();
+  gradedDetailOverlay.classList.remove('show');
+}
+function openGradedDetail(g){
+  const card = CARDS.find(c => c.id === g.cardId);
+  const v = card ? findVariant(card, g.rareza, g.alternativa) : null;
+  const nombre = v ? v.nombre : ('#' + g.cardId);
+  const img = document.getElementById('gradedDetailImg');
+  img.src = tlHelperImg(g.cardId, g.rareza, g.alternativa);
+  img.style.display = '';
+  img.onerror = function(){ this.style.display = 'none'; };
+  const gradeLetterEl = document.getElementById('gradedDetailGradeLetter');
+  gradeLetterEl.textContent = g.grade;
+  gradeLetterEl.className = 'slab-grade grade-' + g.grade;
+  document.getElementById('gradedDetailCardNum').textContent = '#' + g.cardId;
+  document.getElementById('gradedDetailFooter').textContent = nombre + (g.foil ? ' · Foil ✨' : '');
+  document.getElementById('gradedDetailTitle').textContent = nombre;
+  document.getElementById('gradedDetailSub').innerHTML = (v ? rarityBadgeSVG(v.rareza) : '') +
+    '<span>Calidad ' + g.grade + ' · vale ' + gradedSellValue(g.rareza, g.grade, g.signed) + ' monedas</span>' + (g.signed ? ' <span>· Firmada por Akira Toriyama ✒️</span>' : '');
+  document.querySelector('#gradedDetailSlab .slab-big-window').classList.toggle('foil-effect', !!g.foil);
+  applySignatureOverlay(document.querySelector('#gradedDetailSlab .slab-big-window'), !!g.signed);
+  document.getElementById('gradedDetailSlab').classList.toggle('signed-card', !!g.signed);
+  if(v) gradedAnimator.tryAnimate(v); else gradedAnimator.stop();
+  gradedDetailOverlay.classList.add('show');
+}
+document.getElementById('gradedDetailClose').addEventListener('click', closeGradedDetailOverlay);
+
+/* ============ TOP LOADER: funda realista, vista grande interactiva y animaciones ============
+   buildToploaderSleeve arma la funda (la usan la casilla del inventario y la vista grande).
+   openToploaderOverlay(modo, tl):
+     'view'   -> vista grande del inventario: tilt 3D, LWF si es LR, botones Pegar / Graduar
+     'insert' -> la carta baja y entra por la boca de la funda (con sonido), después queda interactiva
+     'remove' -> la carta sale de la funda hacia arriba (con sonido), al volver a pegarla en el álbum */
+function buildToploaderSleeve(tl, opts){
+  opts = opts || {};
+  const sleeve = document.createElement('div');
+  sleeve.className = 'toploader' + (opts.big ? ' toploader-big tilt-card' : ' tl-clickable');
+  const cardEl = document.createElement('div'); cardEl.className = 'tlb-card' + (tl.signed ? ' signed-card' : '');
+  if(tl.foil) cardEl.classList.add('foil-effect');
+  const img = document.createElement('img');
+  img.src = tlHelperImg(tl.cardId, tl.rareza, tl.alternativa);
+  img.onerror = () => { img.style.display = 'none'; cardEl.style.background = rarityFallbackBg(tl.rareza); };
+  cardEl.appendChild(img);
+  if(tl.signed) cardEl.appendChild(buildSignatureImg());
+  let canvas = null, glare = null;
+  if(opts.big){
+    canvas = document.createElement('canvas'); canvas.className = 'modal-card-canvas'; canvas.width = 426; canvas.height = 568;
+    cardEl.appendChild(canvas);
+  }
+  sleeve.appendChild(cardEl);
+  const slit = document.createElement('div'); slit.className = 'tlb-slit'; sleeve.appendChild(slit);
+  const sweep = document.createElement('div'); sweep.className = 'tlb-sweep'; sweep.appendChild(document.createElement('i')); sleeve.appendChild(sweep);
+  if(opts.big){ glare = document.createElement('div'); glare.className = 'card-glare'; sleeve.appendChild(glare); }
+  if(opts.badge){
+    const badge = document.createElement('div'); badge.className = 'tlb-badge'; badge.innerHTML = rarityBadgeSVG(tl.rareza); sleeve.appendChild(badge);
+  }
+  return { sleeve, cardEl, canvas, glare };
+}
+
+const toploaderOverlay = document.getElementById('toploaderOverlay');
+const toploaderStage = document.getElementById('toploaderStage');
+const toploaderTitle = document.getElementById('toploaderTitle');
+const toploaderSub = document.getElementById('toploaderSub');
+const toploaderActions = document.getElementById('toploaderActions');
+let toploaderAnimator = null;   // animador LWF de la vista grande (solo se usa con LR)
+let toploaderTimers = [];
+function clearToploaderState(){
+  toploaderTimers.forEach(clearTimeout); toploaderTimers = [];
+  if(toploaderAnimator){ toploaderAnimator.stop(); toploaderAnimator = null; }
+}
+function closeToploaderOverlay(){
+  clearToploaderState();
+  toploaderStage.replaceChildren();
+  toploaderOverlay.classList.remove('show');
+}
+function openToploaderOverlay(mode, tl){
+  clearToploaderState();
+  const card = CARDS.find(c => c.id === tl.cardId);
+  const v = card ? findVariant(card, tl.rareza, tl.alternativa) : null;
+  const nombre = v ? v.nombre : ('#' + tl.cardId);
+  const parts = buildToploaderSleeve(tl, { big:true });
+  attachTilt(parts.sleeve, parts.glare);
+  toploaderStage.replaceChildren(parts.sleeve);
+  toploaderActions.replaceChildren();
+  toploaderSub.innerHTML = (v ? rarityBadgeSVG(v.rareza) : '') + '<span>' + nombre + ' · #' + tl.cardId + (tl.foil ? ' · Foil ✨' : '') + '</span>';
+
+  const addBtn = (text, cls, fn, disabled) => {
+    const b = document.createElement('button'); b.className = 'btn ' + cls; b.textContent = text;
+    if(disabled) b.disabled = true;
+    b.addEventListener('click', fn);
+    toploaderActions.appendChild(b);
+    return b;
+  };
+  const startLwf = () => {
+    if(!v) return;
+    toploaderAnimator = makeLwfAnimator(parts.cardEl, parts.canvas);
+    toploaderAnimator.tryAnimate(v);
+  };
+
+  if(mode === 'insert'){
+    toploaderTitle.textContent = 'Guardando la figurita en el Top Loader…';
+    parts.cardEl.classList.add('tlb-inserting');
+    playToploaderInSound();
+    toploaderTimers.push(setTimeout(() => {
+      parts.sleeve.classList.add('sealed');
+      toploaderTitle.textContent = '¡Figurita protegida!';
+      addBtn('Continuar', '', closeToploaderOverlay);
+      startLwf();
+    }, 950));
+  } else if(mode === 'remove'){
+    toploaderTitle.textContent = 'Sacando la figurita del Top Loader…';
+    parts.cardEl.classList.add('tlb-removing');
+    playToploaderOutSound();
+    toploaderTimers.push(setTimeout(() => {
+      toploaderTitle.textContent = '¡Lista para pegar!';
+      toploaderSub.innerHTML = '<span>Volvió a tu álbum: pegala para dejarla firme.</span>';
+      addBtn('Continuar', '', closeToploaderOverlay);
+    }, 850));
+  } else {
+    toploaderTitle.textContent = 'Top Loader';
+    startLwf();
+    addBtn('Pegar en álbum', '', () => { closeToploaderOverlay(); pasteBackFromToploader(tl.uid); });
+    addBtn('Graduar', 'secondary', () => { closeToploaderOverlay(); gradeToploadedCard(tl.uid); }, getEmptyExpositors() <= 0);
+  }
+  toploaderOverlay.classList.add('show');
+}
+document.getElementById('toploaderClose').addEventListener('click', closeToploaderOverlay);
+
+function openDetail(card){
+  const entry = collection[card.id];
+  if(!entry) return;
+  renderDetail(card, entry.selected);
+  detailOverlay.classList.add('show');
+}
+function renderDetail(card, sel){
+  const v = findVariant(card, sel.rareza, sel.alternativa);
+  const entry = collection[card.id];
+  const signed = isSignedVariant(card.id, sel.rareza, sel.alternativa);
+  detailImg.src = cardImgSrc(v.img); detailImg.style.display='';
+  detailImg.onerror = () => { detailImg.style.display='none'; detailCard.style.background = rarityFallbackBg(v.rareza); };
+  detailCard.className = 'modal-card tilt-card' + (v.rareza==='LR' ? ' is-LR' : '') + (entry.foil && v.rareza!=='LR' ? ' foil-effect' : '') + (signed ? ' signed-card' : '');
+  applySignatureOverlay(detailCard, signed);
+  detailTitle.textContent = '#' + card.id + ' · ' + v.nombre + (signed ? ' ✒️' : '');
+  detailSub.innerHTML = rarityBadgeSVG(v.rareza) + '<span>' + (v.alternativa ? 'Arte alternativo' : 'Arte estándar') + (entry.foil && v.rareza!=='LR' ? ' · Foil ✨' : '') + (signed ? ' · Firmada por Akira Toriyama ✒️' : '') + '</span>';
+  detailAnimator.tryAnimate(v);
+
+  variantSwitch.innerHTML = '';
+  if(entry.owned.length > 1){
+    for(const o of entry.owned){
+      const b = document.createElement('button');
+      b.innerHTML = rarityBadgeSVG(o.rareza) + '<span>' + (o.alternativa ? 'alt' : 'estándar') + '</span>';
+      if(o.rareza===sel.rareza && o.alternativa===sel.alternativa) b.classList.add('active');
+      b.addEventListener('click', ()=>{
+        entry.selected = { rareza:o.rareza, alternativa:o.alternativa };
+        saveCollection(collection);
+        renderDetail(card, entry.selected);
+        renderGrid();
+      });
+      variantSwitch.appendChild(b);
+    }
+  }
+  const tlBtn = document.getElementById('detailToTopLoaderBtn');
+  if(getEmptyToploaders() > 0){
+    tlBtn.style.display = '';
+    tlBtn.disabled = false;
+    tlBtn.textContent = 'Guardar en Top Loader';
+    tlBtn.onclick = () => {
+      if(!confirm('¿Sacar esta figurita del álbum y guardarla en un Top Loader? La casilla vuelve a quedar pendiente de otra figurita si tenés otra versión, o vacía si era la única.')) return;
+      const tl = moveToTopLoader(card.id);
+      closeDetailOverlay();
+      if(tl) openToploaderOverlay('insert', tl);
+    };
+  } else {
+    tlBtn.style.display = 'none';
+  }
+}
+document.getElementById('detailClose').addEventListener('click', closeDetailOverlay);
+
+/* ============ CÓDIGOS DE CANJE ============ */
+/* Para sumar un código nuevo: agregá una línea a REDEEM_CODES con { packs: { tipo: cantidad, ... } }.
+   Tipos válidos de sobre: daily, redeem, shop10, shopE (mismos que usan los logros). */
+const codeInput = document.getElementById('codeInput');
+const codeMsg = document.getElementById('codeMsg');
+document.getElementById('codeBtn').addEventListener('click', ()=>{
+  const code = (codeInput.value || '').trim().toUpperCase();
+  codeMsg.className = 'code-msg';
+  if(!code) return;
+  if(code === 'KAMISAMA'){
+    const on = !getTestMode();
+    setTestMode(on);
+    refreshPackUI();
+    refreshShopLimits();
+    codeMsg.textContent = on ? 'Modo prueba activado: sobres y compras de la tienda gratis e ilimitados.' : 'Modo prueba desactivado.';
+    codeMsg.classList.add('ok');
+    codeInput.value = '';
+    return;
+  }
+  const reward = REDEEM_CODES[code];
+  if(!reward){ codeMsg.textContent = 'Código inválido.'; codeMsg.classList.add('err'); return; }
+  const redeemed = getRedeemed();
+  if(redeemed.includes(code)){ codeMsg.textContent = 'Ese código ya fue usado en este dispositivo.'; codeMsg.classList.add('err'); return; }
+  redeemed.push(code); setRedeemed(redeemed);
+  const labels = [];
+  if(reward.packs){
+    for(const k in reward.packs){
+      addToInventory(k, reward.packs[k]);
+      labels.push((PACK_TYPES[k] || {}).label + ' x' + reward.packs[k]);
+    }
+  }
+  codeMsg.textContent = '¡Código canjeado! ' + (labels.join(', ') || 'Recompensa aplicada') + '.';
+  codeMsg.classList.add('ok');
+  codeInput.value = '';
+  refreshPackUI();
+  checkAchievements();
+});
+
+/* ============ EXPORT / IMPORT / RESET ============ */
+document.getElementById('exportBtn').addEventListener('click', ()=>{
+  const data = { collection, lastOpen: getLastOpen(), inventory: getInventory(), redeemed: getRedeemed(), coins: getCoins(), luckyTickets: getLuckyTickets(), stats: getStats(), achievements: getUnlockedAchievements(),
+    emptyToploaders: getEmptyToploaders(), emptyExpositors: getEmptyExpositors(), toploadedCards: getToploadedCards(), gradedCards: getGradedCards(),
+    profileNick: localStorage.getItem(LS_PROFILE_NICK) || '', profileBio: localStorage.getItem(LS_PROFILE_BIO) || '', profileAvatar: localStorage.getItem(LS_PROFILE_AVATAR) || '' };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'album-dragonball-progreso.json'; a.click();
+});
+document.getElementById('importBtn').addEventListener('click', ()=> document.getElementById('importFile').click());
+document.getElementById('importFile').addEventListener('change', (e)=>{
+  const file = e.target.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try{
+      const data = JSON.parse(reader.result);
+      collection = data.collection || {};
+      saveCollection(collection);
+      if(data.lastOpen) setLastOpen(data.lastOpen);
+      if(Array.isArray(data.inventory)) setInventory(data.inventory);
+      if(Array.isArray(data.redeemed)) setRedeemed(data.redeemed);
+      if(typeof data.coins === 'number') setCoins(data.coins);
+      if(typeof data.luckyTickets === 'number') setLuckyTickets(data.luckyTickets);
+      if(data.stats && typeof data.stats === 'object') setStats(data.stats);
+      if(Array.isArray(data.achievements)) setUnlockedAchievements(data.achievements);
+      if(typeof data.emptyToploaders === 'number') setEmptyToploaders(data.emptyToploaders);
+      if(typeof data.emptyExpositors === 'number') setEmptyExpositors(data.emptyExpositors);
+      if(Array.isArray(data.toploadedCards)) setToploadedCards(data.toploadedCards);
+      if(Array.isArray(data.gradedCards)) setGradedCards(data.gradedCards);
+      if(typeof data.profileNick === 'string') localStorage.setItem(LS_PROFILE_NICK, data.profileNick);
+      if(typeof data.profileBio === 'string') localStorage.setItem(LS_PROFILE_BIO, data.profileBio);
+      if(typeof data.profileAvatar === 'string') localStorage.setItem(LS_PROFILE_AVATAR, data.profileAvatar);
+      loadProfileHeader();
+      renderGrid(); refreshPackUI(); refreshTicketLine(); checkAchievements();
+    }catch(err){ alert('No se pudo leer el archivo de progreso.'); }
+  };
+  reader.readAsText(file);
+});
+document.getElementById('resetBtn').addEventListener('click', ()=>{
+  if(confirm('¿Reiniciar todo tu progreso del álbum? Esta acción no se puede deshacer.')){
+    collection = {};
+    saveCollection(collection);
+    localStorage.removeItem(LS_LAST_OPEN);
+    localStorage.removeItem(LS_INVENTORY);
+    localStorage.removeItem(LS_REDEEMED);
+    localStorage.removeItem(LS_STATS);
+    localStorage.removeItem(LS_ACHIEVEMENTS);
+    localStorage.removeItem(LS_TOPLOADERS_EMPTY);
+    localStorage.removeItem(LS_EXPOSITORS_EMPTY);
+    localStorage.removeItem(LS_TOPLOADED_CARDS);
+    localStorage.removeItem(LS_GRADED_CARDS);
+    localStorage.removeItem(LS_SIGNED_DUPES);
+    localStorage.removeItem(LS_SHOP_PURCHASES);
+    localStorage.removeItem(LS_SHOP_LIFETIME);
+    setCoins(0);
+    setLuckyTickets(0);
+    renderGrid(); refreshPackUI(); refreshTicketLine(); refreshShopLimits();
+    const activeView = document.querySelector('.view.active');
+    if(activeView) renderViewContent(activeView.id.replace('view-', ''));
+  }
+});
+
+/* ============ COMPARTIR ============ */
+function shareText(){ return '¡Estoy armando mi álbum de figuritas Dragon Ball! Llevo ' + countOwnedSlots() + '/' + CARDS.length + ' figuritas conseguidas 🐉'; }
+document.getElementById('shareWA').addEventListener('click', (e)=>{ e.preventDefault(); window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(shareText()), '_blank'); });
+document.getElementById('shareTW').addEventListener('click', (e)=>{ e.preventDefault(); window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(shareText()), '_blank'); });
+document.getElementById('shareFB').addEventListener('click', (e)=>{ e.preventDefault(); window.open('https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(location.href), '_blank'); });
+document.getElementById('shareCopy').addEventListener('click', async ()=>{ try{ await navigator.clipboard.writeText(shareText()); alert('Texto copiado al portapapeles.'); } catch(e){ alert(shareText()); } });
+
+/* ============ TIENDA: comprar sobre (se suman a la pila, no se abren solos) ============
+   En Modo Prueba TODA compra de la tienda es gratis e ilimitada (no gasta monedas ni cuenta
+   contra el límite diario del ítem). Fuera de Modo Prueba, cada ítem respeta su tope diario
+   (SHOP_LIMITS) pensado para cuidar la economía del juego. */
+function buyPackToInventory(kind, cost, limitKey){
+  limitKey = limitKey || kind;
+  if(!canPurchase(limitKey)){ alert(limitReachedMsg(limitKey)); return; }
+  const free = getTestMode();
+  if(!free && getCoins() < cost){ alert('No te alcanzan las monedas rojas para este sobre.'); return; }
+  if(!free) addCoins(-cost);
+  addToInventory(kind);
+  registerPurchase(limitKey);
+  bumpStat('shopPurchases', 1);
+  renderPackStack();
+  refreshPackUI();
+  refreshShopLimits();
+  checkAchievements();
+  alert((PACK_TYPES[kind].label || 'Sobre') + ' agregado a tu pila.');
+}
+document.getElementById('buyPackBtn').addEventListener('click', ()=> buyPackToInventory('shop5', SHOP_PACK_COST));
+document.getElementById('buyPack10Btn').addEventListener('click', ()=> buyPackToInventory('shop10', SHOP_PACK10_COST));
+document.getElementById('buyExclusiveBtn').addEventListener('click', ()=> buyPackToInventory('shopE', SHOP_EXCLUSIVE_COST));
+document.getElementById('buyLegendaryBtn').addEventListener('click', ()=> buyPackToInventory('legendary', SHOP_LEGENDARY_COST));
+document.getElementById('buyTicketBtn').addEventListener('click', ()=>{
+  if(!canPurchase('ticket')){ alert(limitReachedMsg('ticket')); return; }
+  const free = getTestMode();
+  if(!free && getCoins() < SHOP_TICKET_COST){ alert('No te alcanzan las monedas rojas para el ticket.'); return; }
+  if(!free) addCoins(-SHOP_TICKET_COST);
+  setLuckyTickets(getLuckyTickets() + 1);
+  registerPurchase('ticket');
+  bumpStat('shopPurchases', 1);
+  refreshTicketLine();
+  refreshPackUI();
+  refreshShopLimits();
+  checkAchievements();
+  alert('¡Ticket de la suerte comprado! Se va a usar automáticamente en tu próximo sobre.');
+});
+document.getElementById('buyToploaderBtn').addEventListener('click', ()=>{
+  if(!canPurchase('toploader')){ alert(limitReachedMsg('toploader')); return; }
+  const free = getTestMode();
+  if(!free && getCoins() < SHOP_TOPLOADER_COST){ alert('No te alcanzan las monedas rojas para el top loader.'); return; }
+  if(!free) addCoins(-SHOP_TOPLOADER_COST);
+  setEmptyToploaders(getEmptyToploaders() + 1);
+  registerPurchase('toploader');
+  bumpStat('shopPurchases', 1);
+  bumpStat('toploadersBought', 1);
+  refreshShopLimits();
+  checkAchievements();
+  alert('¡Top Loader comprado! Andá al detalle de una figurita pegada en el álbum para guardarla ahí.');
+});
+document.getElementById('buyExpositorBtn').addEventListener('click', ()=>{
+  if(!canPurchase('expositor')){ alert(limitReachedMsg('expositor')); return; }
+  const free = getTestMode();
+  if(!free && getCoins() < SHOP_EXPOSITOR_COST){ alert('No te alcanzan las monedas rojas para el expositor.'); return; }
+  if(!free) addCoins(-SHOP_EXPOSITOR_COST);
+  setEmptyExpositors(getEmptyExpositors() + 1);
+  registerPurchase('expositor');
+  bumpStat('shopPurchases', 1);
+  bumpStat('expositorsBought', 1);
+  refreshShopLimits();
+  checkAchievements();
+  alert('¡Expositor comprado! Usalo desde tu Perfil para graduar una figurita guardada en un Top Loader.');
+});
+document.getElementById('buyMysteryBtn').addEventListener('click', ()=>{
+  if(!canPurchase('mystery')){ alert(limitReachedMsg('mystery')); return; }
+  const free = getTestMode();
+  if(!free && getCoins() < SHOP_MYSTERY_COST){ alert('No te alcanzan las monedas rojas para la caja sorpresa.'); return; }
+  if(!free) addCoins(-SHOP_MYSTERY_COST);
+  registerPurchase('mystery');
+  bumpStat('shopPurchases', 1);
+  const roll = Math.random();
+  let msg;
+  if(roll < 0.35){ setLuckyTickets(getLuckyTickets() + 1); refreshTicketLine(); msg = '¡Un Ticket de la suerte!'; }
+  else if(roll < 0.65){ setEmptyToploaders(getEmptyToploaders() + 1); msg = '¡Un Top Loader!'; }
+  else if(roll < 0.85){ setEmptyExpositors(getEmptyExpositors() + 1); msg = '¡Un Expositor!'; }
+  else { addToInventory('shop5'); renderPackStack(); msg = '¡Un Sobre de 5 figuritas!'; }
+  refreshPackUI();
+  refreshShopLimits();
+  checkAchievements();
+  alert('¡Baba abre la caja sorpresa y te da: ' + msg + '!');
+});
+function refreshTicketLine(){
+  const n = getLuckyTickets();
+  document.getElementById('ticketLine').textContent = n > 0 ? ('Tickets de la suerte guardados: ' + n) : '';
+}
+
+/* ============ TIENDA: comprar foil ============ */
+const foilPickerOverlay = document.getElementById('foilPickerOverlay');
+const foilPickerGrid = document.getElementById('foilPickerGrid');
+document.getElementById('buyFoilBtn').addEventListener('click', ()=>{
+  if(!canPurchase('foil')){ alert(limitReachedMsg('foil')); return; }
+  const ownedNonLR = CARDS.filter(c => {
+    const entry = collection[c.id];
+    if(!entry) return false;
+    const v = findVariant(c, entry.selected.rareza, entry.selected.alternativa);
+    return v.rareza !== 'LR';
+  });
+  if(ownedNonLR.length === 0){ alert('Todavía no tenés ninguna figurita elegible (no-LR) para aplicarle el efecto Foil.'); return; }
+  document.getElementById('foilPickerSub').textContent = 'Costo: ' + SHOP_FOIL_COST + ' monedas rojas · Tenés ' + getCoins();
+  foilPickerGrid.innerHTML = '';
+  for(const c of ownedNonLR){
+    const entry = collection[c.id];
+    const v = findVariant(c, entry.selected.rareza, entry.selected.alternativa);
+    const pslot = document.createElement('div');
+    pslot.className = 'pslot' + (entry.foil ? ' has-foil' : '');
+    const img = document.createElement('img'); img.src = cardImgSrc(v.img);
+    img.onerror = () => { img.style.display='none'; pslot.style.background = rarityFallbackBg(v.rareza); };
+    pslot.appendChild(img);
+    const tag = document.createElement('div'); tag.className='pf-tag'; tag.textContent = entry.foil ? 'Ya tiene foil' : ('#' + c.id);
+    pslot.appendChild(tag);
+    pslot.addEventListener('click', ()=>{
+      if(entry.foil){ alert('Esa figurita ya tiene el efecto Foil.'); return; }
+      if(!canPurchase('foil')){ alert(limitReachedMsg('foil')); return; }
+      const free = getTestMode();
+      if(!free && getCoins() < SHOP_FOIL_COST){ alert('No te alcanzan las monedas rojas.'); return; }
+      if(!confirm('¿Aplicar el efecto Foil a #' + c.id + ' · ' + v.nombre + ' por ' + SHOP_FOIL_COST + ' monedas rojas?')) return;
+      if(!free) addCoins(-SHOP_FOIL_COST);
+      entry.foil = true;
+      saveCollection(collection);
+      registerPurchase('foil');
+      bumpStat('shopPurchases', 1);
+      bumpStat('foilApplied', 1);
+      renderGrid();
+      refreshShopLimits();
+      checkAchievements();
+      foilPickerOverlay.classList.remove('show');
+    });
+    foilPickerGrid.appendChild(pslot);
+  }
+  foilPickerOverlay.classList.add('show');
+});
+document.getElementById('foilPickerClose').addEventListener('click', ()=> foilPickerOverlay.classList.remove('show'));
+
+/* ============ NAV / VISTAS ============ */
+/* Qué hay que (re)dibujar cuando se muestra cada página. Lo usan setView() y el reinicio de partida. */
+function renderViewContent(view){
+  if(view === 'perfil'){ renderGraded(); renderProfileStats(); loadProfileHeader(); }
+  if(view === 'inventario'){ renderInventoryStock(); renderToploaders(); renderGraded(); renderSignedDupes(); }
+  if(view === 'logros'){ renderAchievements(); }
+  if(view === 'tienda'){ refreshShopLimits(); }
+}
+function setView(view){
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-' + view).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+  renderViewContent(view);
+}
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  btn.addEventListener('click', () => setView(btn.dataset.view));
+});
+
+/* ============ INIT ============ */
+/* Arte de sobres y título ligados a la saga actual (ver el objeto en SAGAS, arriba del todo) */
+for(const key in CURRENT_SAGA.packs){ if(PACK_TYPES[key]) PACK_TYPES[key].art = CURRENT_SAGA.packs[key]; }
+if(CURRENT_SAGA.packs.shop5){ PACK_TYPES.daily.art = CURRENT_SAGA.packs.shop5; PACK_TYPES.redeem.art = CURRENT_SAGA.packs.shop5; }
+const promoImgEl = document.querySelector('.promo-img');
+if(promoImgEl && CURRENT_SAGA.promo) promoImgEl.src = CURRENT_SAGA.promo;
+if(CURRENT_SAGA.titulo) document.title = CURRENT_SAGA.titulo;
+
+document.getElementById('coinIcon').innerHTML = coinIconSVG();
+document.getElementById('shopFoilIcon').innerHTML = '<svg viewBox="0 0 100 100"><rect x="20" y="8" width="60" height="84" rx="6" fill="#8659c9"/><rect x="20" y="8" width="60" height="84" rx="6" fill="url(#g)" opacity="0.7"/><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ff6a1a"/><stop offset="50%" stop-color="#ff3d7f"/><stop offset="100%" stop-color="#e3b23c"/></linearGradient></defs></svg>';
+document.getElementById('shopPackPriceIcon').innerHTML = coinIconSVG();
+document.getElementById('shopPack10PriceIcon').innerHTML = coinIconSVG();
+document.getElementById('shopExclusivePriceIcon').innerHTML = coinIconSVG();
+document.getElementById('shopLegendaryPriceIcon').innerHTML = coinIconSVG();
+document.getElementById('shopFoilPriceIcon').innerHTML = coinIconSVG();
+document.getElementById('shopTicketPriceIcon').innerHTML = coinIconSVG();
+document.getElementById('shopToploaderPriceIcon').innerHTML = coinIconSVG();
+document.getElementById('shopExpositorPriceIcon').innerHTML = coinIconSVG();
+document.getElementById('shopMysteryPriceIcon').innerHTML = coinIconSVG();
+document.getElementById('shopPackPrice').textContent = SHOP_PACK_COST;
+document.getElementById('shopPack10Price').textContent = SHOP_PACK10_COST;
+document.getElementById('shopExclusivePrice').textContent = SHOP_EXCLUSIVE_COST;
+document.getElementById('shopLegendaryPrice').textContent = SHOP_LEGENDARY_COST;
+document.getElementById('shopFoilPrice').textContent = SHOP_FOIL_COST;
+document.getElementById('shopTicketPrice').textContent = SHOP_TICKET_COST;
+document.getElementById('shopToploaderPrice').textContent = SHOP_TOPLOADER_COST;
+document.getElementById('shopExpositorPrice').textContent = SHOP_EXPOSITOR_COST;
+document.getElementById('shopMysteryPrice').textContent = SHOP_MYSTERY_COST;
+refreshTicketLine();
+refreshShopLimits();
+
+/* ---- Opciones: revelado de sobres (todas juntas / de a una / mazo en mano) ---- */
+const revealModeSegButtons = document.querySelectorAll('#revealModeSeg .option-seg-btn');
+function syncRevealModeUI(){
+  const mode = getRevealMode();
+  revealModeSegButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.mode === mode));
+}
+revealModeSegButtons.forEach(btn => {
+  btn.addEventListener('click', () => { setRevealMode(btn.dataset.mode); syncRevealModeUI(); });
+});
+syncRevealModeUI();
+
+/* ---- Opciones: silenciar sonidos ---- */
+const muteToggle = document.getElementById('muteToggle');
+function syncMuteUI(){
+  const muted = isMuted();
+  muteToggle.checked = muted;
+  const label = document.getElementById('muteLabel');
+  label.textContent = muted ? 'Silenciado' : 'Sonido activado';
+  label.classList.toggle('active', muted);
+}
+muteToggle.addEventListener('change', () => { setMuted(muteToggle.checked); syncMuteUI(); });
+syncMuteUI();
+
+/* ---- Opciones: pantalla completa (el botón y la tecla F11 son independientes: F11 es del navegador) ---- */
+const fullscreenBtn = document.getElementById('fullscreenBtn');
+const fsRoot = document.documentElement;
+const fsRequest = fsRoot.requestFullscreen || fsRoot.webkitRequestFullscreen;
+function fsActive(){ return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+function syncFullscreenUI(){ fullscreenBtn.textContent = fsActive() ? 'Salir de pantalla completa' : 'Pantalla completa'; }
+if(!fsRequest){
+  fullscreenBtn.disabled = true;
+  fullscreenBtn.title = 'Tu navegador no permite pantalla completa desde la página: probá con F11.';
+} else {
+  fullscreenBtn.addEventListener('click', () => {
+    if(fsActive()){ (document.exitFullscreen || document.webkitExitFullscreen).call(document); }
+    else { const r = fsRequest.call(fsRoot); if(r && r.catch) r.catch(e => console.warn('[pantalla completa bloqueada]', e && e.message)); }
+  });
+  document.addEventListener('fullscreenchange', syncFullscreenUI);
+  document.addEventListener('webkitfullscreenchange', syncFullscreenUI);
+}
+syncFullscreenUI();
+
+renderGrid();
+refreshPackUI();
+updateCoinUI();
+checkAchievements();
+loadProfileHeader();
+</script>
+</body>
+</html>
